@@ -142,6 +142,17 @@
   /* ---------- pads ---------- */
   #padsPanel{padding:12px 16px 16px}
   #acePanel{padding:12px 16px 16px}
+  #songPanel{padding:12px 16px 16px}
+  .song-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px}
+  .blk-lane{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .blk{display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 8px;
+    border:1px solid rgba(255,255,255,.14);border-radius:8px;background:var(--panel-solid);min-width:52px}
+  .blk.ph{border-color:var(--amber);box-shadow:0 0 8px rgba(255,190,80,.35)}
+  .blk .pat-btn{font-size:16px;font-weight:700;background:none;border:none;color:var(--ink);cursor:pointer;padding:2px 8px}
+  .blk .mutes{display:flex;gap:4px}
+  .blk .mdot{width:16px;height:16px;border-radius:4px;border:1px solid rgba(255,255,255,.2);
+    background:none;color:var(--dim);font-size:9px;line-height:1;padding:0;cursor:pointer}
+  .blk .mdot.off{opacity:.28;text-decoration:line-through}
   #acePanel textarea{width:100%;min-height:64px;background:var(--panel-solid);color:var(--ink);
     border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:8px;font:inherit;resize:vertical}
   .ace-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px}
@@ -203,6 +214,7 @@
     <section id="racks"></section>
     <aside class="panel side" id="sound"></aside>
   </div>
+  <div class="panel" id="songPanel"></div>
   <div class="panel" id="padsPanel"></div>
   <div class="panel" id="acePanel"></div>
   <footer>QAMAR &middot; browser synthesis, nothing recorded, nothing sent anywhere &middot; patterns save locally &middot; ACE dreams render on this machine only</footer>
@@ -384,9 +396,50 @@ function normalize(s){
   if(s.atmoX==null)s.atmoX=.4;
   if(s.atmoY==null)s.atmoY=.5;
   if(s.evolve==null)s.evolve=false;
+  if(!s.voicing)s.voicing='triads';
+  if(s.smart==null)s.smart=true;
+  if(!s.pat)s.pat='A';
+  for(const id of ['kick','clap','hat','perc']){ const t=s.tr[id];
+    if(!t.onB)t.onB=t.on.slice(); }
   for(const id of ['bass','chords','lead']){ const t=s.tr[id];
-    if(t.macroX==null)macrosFromParams(t); }
+    if(t.macroX==null)macrosFromParams(t);
+    if(!t.stepsB)t.stepsB=(t.steps||Array(16).fill(-1)).slice(); }
+  if(!s.arr)s.arr={on:false,blocks:[{p:'A',m:{}},{p:'A',m:{}},{p:'B',m:{}},{p:'B',m:{}}]};
   return s;
+}
+/* pattern helpers: every track holds an A and a B pattern */
+const editPat=()=>st.pat||'A';
+const drumOn=(tr,pat)=>pat==='B'?tr.onB:tr.on;
+const melSteps=(tr,pat)=>pat==='B'?tr.stepsB:tr.steps;
+function arrBlocks(){ return st.arr&&st.arr.on&&st.arr.blocks.length?st.arr.blocks:null; }
+
+/* ---- harmony engine: richer chords, voice leading, chord-tone guidance ---- */
+function chordTones(scale,deg){ // scale-degree indices, extended by the voicing setting
+  const n={triads:3,'7ths':4,'9ths':5}[st.voicing]||3;
+  const out=[]; for(let k=0;k<2*n-1;k+=2)out.push(deg+k);
+  return out;
+}
+function chordCentsFor(scale,deg){
+  const L=scale.c.length;
+  return chordTones(scale,deg).map(i=>scale.c[i%L]+1200*Math.floor(i/L));
+}
+let lastVoicing=null;
+function voiceLead(target){
+  // move each chord tone to the octave closest to the previous chord, so
+  // progressions glide instead of jumping in parallel stacks
+  if(!st.smart||!lastVoicing){ lastVoicing=target.slice(); return target; }
+  const out=target.map(c=>{
+    const pc=((c%1200)+1200)%1200;
+    let best=c,bd=1e9;
+    for(const cand of [pc-1200,pc,pc+1200,pc+2400]){
+      const d=Math.min(...lastVoicing.map(p=>Math.abs(cand-p)));
+      if(d<bd){bd=d;best=cand;}
+    }
+    return best;
+  }).sort((a,b)=>a-b);
+  for(let i=1;i<out.length;i++)while(out[i]<=out[i-1])out[i]+=1200;
+  lastVoicing=out.slice();
+  return out;
 }
 
 /* =============================== audio engine =============================== */
@@ -537,20 +590,34 @@ let playing=false, step64=0, nextTime=0, timer=null, lastBassFreq=null;
 const uiQ=[], vizQ=[];
 function s16(){ return 60/st.bpm/4; }
 function barChordDeg(bar){ return progById(st.progId).deg[bar%4]; }
+let curChordKey='',curChordNotes=null;
 function scheduleStep(step,tBase){
   const s=step%16, bar=(step>>4)%4;
+  const blocks=arrBlocks();
+  const blk=blocks?Math.floor(step/64)%blocks.length:-1;
+  const block=blocks?blocks[blk]:null;
+  const pat=block?block.p:editPat();
+  const mute=(block&&block.m)||{};
   const t=tBase+(s%2===1?st.swing*s16():0);
   const scale=scaleById(st.scaleId), L=scale.c.length;
   const prog=progById(st.progId), deg=barChordDeg(bar);
-  for(const id of ['kick','clap','hat','perc']){
-    if(st.tr[id].on[s]){ DRUMS[id](t); vizQ.push({t,kind:id}); }
+  if(!mute.dr)for(const id of ['kick','clap','hat','perc']){
+    if(drumOn(st.tr[id],pat)[s]){ DRUMS[id](t); vizQ.push({t,kind:id}); }
   }
-  { const tr=st.tr.bass, row=tr.steps[s];
-    if(row>=0){ const off=tr.follow?scale.c[deg]:0;
+  if(!mute.bs){ const tr=st.tr.bass, row=melSteps(tr,pat)[s];
+    if(row>=0){
+      // pickup: on the last 16th, lean into the coming bar's chord instead of this one's
+      const pdeg=(st.smart&&tr.follow&&s===15)?barChordDeg(bar+1):deg;
+      const off=tr.follow?scale.c[pdeg%L]:0;
       const cents=scaleRowCents(scale,row)+off;
       lastBassFreq=playMel(tr,cents,tr.oct,t,s16()*.92,1,lastBassFreq);
       vizQ.push({t,kind:'note',cents,band:.78}); } }
-  { const tr=st.tr.chords, notes=prog.drone?[scale.c[0],700]:chordCents(scale,deg);
+  if(!mute.ch){ const tr=st.tr.chords;
+    let notes;
+    if(prog.drone)notes=[scale.c[0],700];
+    else{ const key=blk+':'+bar;
+      if(key!==curChordKey){ curChordNotes=voiceLead(chordCentsFor(scale,deg)); curChordKey=key; }
+      notes=curChordNotes; }
     const style=tr.style||'pad';
     if(style==='pad'&&s===0){ notes.forEach(c=>playMel(tr,c,tr.oct,t,s16()*15.5,.85));
       vizQ.push({t,kind:'chord',cents:notes[0],band:.5}); }
@@ -558,23 +625,35 @@ function scheduleStep(step,tBase){
       vizQ.push({t,kind:'chord',cents:notes[0],band:.5}); }
     if(style==='arp'){ const seq=[...notes,notes[0]+1200]; const c=seq[s%seq.length];
       playMel(tr,c,tr.oct,t,s16()*.9,.75); vizQ.push({t,kind:'note',cents:c,band:.5}); } }
-  { const tr=st.tr.lead, row=tr.steps[s];
-    if(row>=0){ const cents=scaleRowCents(scale,row);
+  if(!mute.ld){ const tr=st.tr.lead; let row=melSteps(tr,pat)[s];
+    if(row>=0){
+      if(st.smart&&s%4===0&&!prog.drone){
+        // magnet: strong beats snap to the nearest tone of this bar's chord
+        const pcs=chordTones(scale,deg).map(i=>i%L);
+        if(!pcs.includes(row%L)){
+          let best=row,bd=9;
+          for(const d of [-1,1,-2,2]){ const r2=row+d;
+            if(r2>=0&&pcs.includes(((r2%L)+L)%L)&&Math.abs(d)<bd){bd=Math.abs(d);best=r2;} }
+          row=best;
+        }
+      }
+      const cents=scaleRowCents(scale,row);
       playMel(tr,cents,tr.oct,t,s16()*1.9,1);
       vizQ.push({t,kind:'note',cents,band:.32}); } }
-  uiQ.push({t,s,bar});
-  if(step===63&&st.evolve){
+  uiQ.push({t,s,bar,blk});
+  if(step%64===63&&st.evolve){
     const wait=Math.max(0,t-ac.currentTime)*1000+40;
     setTimeout(()=>{ if(!st.evolve)return;
-      varyMel(st.tr.lead);
-      if(Math.random()<.3)varyMel(st.tr.bass);
+      varyMel(st.tr.lead,pat);
+      if(Math.random()<.3)varyMel(st.tr.bass,pat);
       save(); renderAll(); },wait);
   }
 }
 function tick(){
+  const blocks=arrBlocks(), total=blocks?64*blocks.length:64;
   while(nextTime<ac.currentTime+.13){
     scheduleStep(step64,nextTime);
-    nextTime+=s16(); step64=(step64+1)%64;
+    nextTime+=s16(); step64=(step64+1)%total;
   }
 }
 function togglePlay(){
@@ -583,8 +662,8 @@ function togglePlay(){
   const b=document.getElementById('playBtn');
   b.classList.toggle('on',playing);
   b.innerHTML=playing?'&#9632;':'&#9654;';
-  if(playing){ step64=0; lastBassFreq=null; nextTime=ac.currentTime+.06; tick(); timer=setInterval(tick,25); }
-  else { clearInterval(timer); uiQ.length=0; vizQ.length=0; setPlayhead(-1,-1); }
+  if(playing){ step64=0; lastBassFreq=null; lastVoicing=null; curChordKey=''; nextTime=ac.currentTime+.06; tick(); timer=setInterval(tick,25); }
+  else { clearInterval(timer); uiQ.length=0; vizQ.length=0; setPlayhead(-1,-1); setArrPlayhead(-1); }
 }
 
 
@@ -592,7 +671,7 @@ function togglePlay(){
 const pick=a=>a[Math.floor(Math.random()*a.length)];
 function chordPitchClasses(){
   const scale=scaleById(st.scaleId), L=scale.c.length, deg=progById(st.progId).deg[0];
-  return [deg,deg+2,deg+4].map(d=>d%L);
+  return chordTones(scale,deg).map(d=>d%L);
 }
 function genLeadSteps(){
   const scale=scaleById(st.scaleId), L=scale.c.length, maxRow=2*L;
@@ -624,6 +703,8 @@ function genBassSteps(){
     const r=Math.random();
     steps[s]=r<.62?0:(r<.82?L:fifth); // mostly roots, some octaves, a few fifths
   });
+  // cadence: sometimes walk into the next bar with a leading step below the root
+  if(st.smart&&Math.random()<.5&&steps[15]<0)steps[15]=L-1;
   return steps;
 }
 function genDrumSteps(){
@@ -631,22 +712,24 @@ function genDrumSteps(){
   const clap=pick([[4,12],[4,12],[4,12,15],[]]);
   const hat=pick([[2,6,10,14],[0,2,4,6,8,10,12,14],[2,6,10,14,15],[1,3,5,7,9,11,13,15]]);
   const perc=pick([[3,11],[7,15],[5,13],[3,10,14],[]]);
-  st.tr.kick.on=hits(...kick); st.tr.clap.on=hits(...clap);
-  st.tr.hat.on=hits(...hat); st.tr.perc.on=hits(...perc);
+  const k=editPat()==='B'?'onB':'on';
+  st.tr.kick[k]=hits(...kick); st.tr.clap[k]=hits(...clap);
+  st.tr.hat[k]=hits(...hat); st.tr.perc[k]=hits(...perc);
 }
-function varyMel(tr){
+function varyMel(tr,pat){
   const maxRow=2*scaleById(st.scaleId).c.length, L=scaleById(st.scaleId).c.length;
-  const idx=[];
-  tr.steps.forEach((v,s)=>{ if(v>=0)idx.push(s); });
-  if(!idx.length){ tr.steps=genLeadSteps(); return; }
+  const key=(pat||editPat())==='B'?'stepsB':'steps';
+  const st_=tr[key], idx=[];
+  st_.forEach((v,s)=>{ if(v>=0)idx.push(s); });
+  if(!idx.length){ tr[key]=genLeadSteps(); return; }
   const n=1+(Math.random()<.5?1:0);
   for(let i=0;i<n;i++){
     const s=pick(idx), op=Math.random();
-    if(op<.35) tr.steps[s]=Math.max(0,Math.min(maxRow,tr.steps[s]+pick([-2,-1,1,2])));
-    else if(op<.55){ const t2=s+pick([-1,1]); if(t2>=0&&t2<16&&tr.steps[t2]<0){ tr.steps[t2]=tr.steps[s]; tr.steps[s]=-1; } }
-    else if(op<.72){ const r=tr.steps[s]; tr.steps[s]=Math.max(0,Math.min(maxRow,r>=L?r-L:r+L)); }
-    else if(op<.9){ const t2=(s+2)%16; if(tr.steps[t2]<0)tr.steps[t2]=tr.steps[s]; }
-    else if(idx.length>3) tr.steps[s]=-1;
+    if(op<.35) st_[s]=Math.max(0,Math.min(maxRow,st_[s]+pick([-2,-1,1,2])));
+    else if(op<.55){ const t2=s+pick([-1,1]); if(t2>=0&&t2<16&&st_[t2]<0){ st_[t2]=st_[s]; st_[s]=-1; } }
+    else if(op<.72){ const r=st_[s]; st_[s]=Math.max(0,Math.min(maxRow,r>=L?r-L:r+L)); }
+    else if(op<.9){ const t2=(s+2)%16; if(st_[t2]<0)st_[t2]=st_[s]; }
+    else if(idx.length>3) st_[s]=-1;
   }
 }
 /* =============================== UI helpers =============================== */
@@ -737,8 +820,9 @@ function buildHeader(){
   sc.appendChild(imm);
   const clr=el('button','scene-btn ghost','Clear');
   clr.addEventListener('click',()=>{
-    for(const id of ['kick','clap','hat','perc'])st.tr[id].on=Array(16).fill(false);
-    st.tr.bass.steps=Array(16).fill(-1); st.tr.lead.steps=Array(16).fill(-1);
+    const k=editPat()==='B'?'onB':'on', mk=editPat()==='B'?'stepsB':'steps';
+    for(const id of ['kick','clap','hat','perc'])st.tr[id][k]=Array(16).fill(false);
+    st.tr.bass[mk]=Array(16).fill(-1); st.tr.lead[mk]=Array(16).fill(-1);
     save(); renderAll(); });
   sc.appendChild(clr);
   $('#playBtn').onclick=togglePlay;
@@ -762,6 +846,12 @@ function buildTheory(){
   const progSel=mkSelect(PROGS.map(p=>({v:p.id,t:p.name})),st.progId,v=>{st.progId=v; save(); renderAll();});
   t.appendChild(field('Chords, one per bar',progSel));
   t.appendChild(el('div','blurb',progById(st.progId).blurb));
+  const vSel=mkSelect([['triads','triads'],['7ths','sevenths'],['9ths','ninths']].map(([v,tx])=>({v,t:tx})),st.voicing,v=>{st.voicing=v; save(); renderAll();});
+  t.appendChild(field('Chord color',vSel));
+  const sm=el('button','mini-btn'+(st.smart?' on':''),'smart harmony');
+  sm.title='Voice-led chords, strong beats guided to chord tones, bass pickups into the next bar';
+  sm.addEventListener('click',()=>{ st.smart=!st.smart; sm.classList.toggle('on'); save(); });
+  t.appendChild(sm);
 }
 function stepCellClasses(s){ return 'cell'+(s%4===0?' beat':''); }
 const colCells={}; // rackId -> [16][cells]
@@ -783,10 +873,11 @@ function buildDrums(){
     if(st.sel===id)lab.style.color='var(--amber)';
     lab.addEventListener('click',()=>{ st.sel=id; save(); renderAll(); });
     grid.appendChild(lab);
+    const arr=drumOn(st.tr[id],editPat());
     for(let s=0;s<16;s++){
       const c=el('button',stepCellClasses(s)); c.setAttribute('aria-label',id+' step '+(s+1));
-      if(st.tr[id].on[s])c.classList.add('on');
-      c.addEventListener('click',()=>{ st.tr[id].on[s]=!st.tr[id].on[s]; c.classList.toggle('on'); save(); });
+      if(arr[s])c.classList.add('on');
+      c.addEventListener('click',()=>{ arr[s]=!arr[s]; c.classList.toggle('on'); save(); });
       grid.appendChild(c); colCells.drums[s].push(c);
     }
   }
@@ -802,7 +893,7 @@ function buildMelRack(id,title,note){
   head.appendChild(tbtn);
   const gen=el('button','mini-btn',id==='bass'?'groove':'riff');
   gen.title='Write a new pattern in this scale, chord tones on the strong beats';
-  gen.addEventListener('click',()=>{ tr.steps=(id==='bass'?genBassSteps():genLeadSteps()); save(); renderAll(); });
+  gen.addEventListener('click',()=>{ tr[editPat()==='B'?'stepsB':'steps']=(id==='bass'?genBassSteps():genLeadSteps()); save(); renderAll(); });
   head.appendChild(gen);
   const vb=el('button','mini-btn','vary');
   vb.title='Nudge the pattern: move, bend, echo, or drop a note or two';
@@ -825,6 +916,7 @@ function buildMelRack(id,title,note){
   const grid=el('div','mel-grid');
   grid.style.gridTemplateColumns='64px repeat(16,minmax(14px,1fr))';
   colCells[id]=Array.from({length:16},()=>[]);
+  const stepsArr=melSteps(tr,editPat());
   for(let r=rows-1;r>=0;r--){
     const cents=scaleRowCents(scale,r);
     grid.appendChild(el('div','row-label',noteName(st.rootMidi,cents)));
@@ -832,8 +924,8 @@ function buildMelRack(id,title,note){
       const c=el('button',stepCellClasses(s));
       c.setAttribute('aria-label',title+' '+noteName(st.rootMidi,cents)+' step '+(s+1));
       const hue=hueFor(cents);
-      if(tr.steps[s]===r){ c.classList.add('on'); c.style.background='hsl('+hue+' 75% 62%)'; c.style.borderColor='hsl('+hue+' 75% 62%)'; c.style.boxShadow='0 0 9px hsl('+hue+' 75% 55% / .55)'; }
-      c.addEventListener('click',()=>{ tr.steps[s]=(tr.steps[s]===r?-1:r); save(); renderAll(); });
+      if(stepsArr[s]===r){ c.classList.add('on'); c.style.background='hsl('+hue+' 75% 62%)'; c.style.borderColor='hsl('+hue+' 75% 62%)'; c.style.boxShadow='0 0 9px hsl('+hue+' 75% 55% / .55)'; }
+      c.addEventListener('click',()=>{ stepsArr[s]=(stepsArr[s]===r?-1:r); save(); renderAll(); });
       grid.appendChild(c); colCells[id][s].push(c);
     }
   }
@@ -860,7 +952,7 @@ function buildChords(){
   const cells=el('div','chord-cells'); chordCellEls=[];
   for(let bar=0;bar<4;bar++){
     const deg=prog.deg[bar];
-    const notes=prog.drone?[scale.c[0],700]:chordCents(scale,deg);
+    const notes=prog.drone?[scale.c[0],700]:chordCentsFor(scale,deg);
     const cell=el('div','chord-cell');
     cell.appendChild(el('div','rn',prog.drone?'drone':chordNumeral(scale,deg)));
     cell.appendChild(el('div','cn',notes.map(c=>noteName(st.rootMidi,c)).join(' ')));
@@ -1125,7 +1217,84 @@ async function buildAce(){
   if(await aceHealth())aceStatus('ACE-Step is listening on this Mac','on');
   else aceStatus('server not running. In Terminal: cd ~/WORKSHOP/ACE-Step-1.5 && bash start_api_server_macos.sh','');
 }
-function renderAll(){ buildHeader(); buildTheory(); buildRacks(); buildSound(); buildPads(); }
+/* =============================== song panel =============================== */
+const MUTE_KEYS=[['dr','drums'],['bs','bass'],['ch','chords'],['ld','lead']];
+const SONG_PRESETS={
+  loop:{name:'A / B loop',blocks:[{p:'A',m:{}},{p:'A',m:{}},{p:'B',m:{}},{p:'B',m:{}}]},
+  night:{name:'Night drive',blocks:[
+    {p:'A',m:{dr:1,ld:1}},{p:'A',m:{ld:1}},{p:'A',m:{}},{p:'A',m:{}},
+    {p:'B',m:{bs:1}},{p:'B',m:{}},{p:'B',m:{}},{p:'A',m:{dr:1}}]},
+  drop:{name:'Build &amp; drop',blocks:[
+    {p:'A',m:{}},{p:'A',m:{}},{p:'B',m:{dr:1}},{p:'B',m:{}},
+    {p:'B',m:{}},{p:'A',m:{dr:1,bs:1}},{p:'B',m:{}},{p:'B',m:{}}]}
+};
+let arrBlockEls=[];
+function buildSong(){
+  const p=$('#songPanel'); p.innerHTML=''; arrBlockEls=[];
+  const head=el('div');
+  head.style.cssText='display:flex;gap:14px;align-items:baseline;flex-wrap:wrap';
+  head.appendChild(el('h2',null,'Song'));
+  head.appendChild(el('span','rack-note','two patterns per track, arranged into 4-bar blocks'));
+  p.appendChild(head);
+  const row=el('div','song-row');
+  for(const pat of ['A','B']){
+    const b=el('button','mini-btn'+(editPat()===pat?' on':''),'edit '+pat);
+    b.title='Which pattern the grids above show and edit (and play, in loop mode)';
+    b.addEventListener('click',()=>{ st.pat=pat; save(); renderAll(); });
+    row.appendChild(b);
+  }
+  const cp=el('button','mini-btn','copy A&rarr;B');
+  cp.title='Start pattern B from a copy of A';
+  cp.addEventListener('click',()=>{
+    for(const id of ['kick','clap','hat','perc'])st.tr[id].onB=st.tr[id].on.slice();
+    for(const id of ['bass','lead'])st.tr[id].stepsB=st.tr[id].steps.slice();
+    save(); renderAll(); });
+  row.appendChild(cp);
+  const mode=el('button','mini-btn'+(st.arr.on?' on':''),st.arr.on?'song mode':'loop mode');
+  mode.title='Loop mode repeats the editing pattern; song mode walks the blocks below';
+  mode.addEventListener('click',()=>{ st.arr.on=!st.arr.on; save(); renderAll(); });
+  row.appendChild(mode);
+  const presetSel=mkSelect([{v:'',t:'presets...'}].concat(Object.keys(SONG_PRESETS).map(k=>({v:k,t:SONG_PRESETS[k].name}))),'',v=>{
+    if(!v)return;
+    st.arr.blocks=JSON.parse(JSON.stringify(SONG_PRESETS[v].blocks));
+    st.arr.on=true; save(); renderAll(); });
+  row.appendChild(presetSel);
+  p.appendChild(row);
+  const lane=el('div','blk-lane');
+  st.arr.blocks.forEach((blkDef,i)=>{
+    const b=el('div','blk');
+    const pb=el('button','pat-btn',blkDef.p);
+    pb.title='4 bars of pattern '+blkDef.p+'. Click to flip A/B.';
+    pb.addEventListener('click',()=>{ blkDef.p=blkDef.p==='A'?'B':'A'; save(); renderAll(); });
+    b.appendChild(pb);
+    const mutes=el('div','mutes');
+    for(const [k,label] of MUTE_KEYS){
+      const m=el('button','mdot'+(blkDef.m&&blkDef.m[k]?' off':''),label[0]);
+      m.title=(blkDef.m&&blkDef.m[k]?'unmute ':'mute ')+label+' in this block';
+      m.addEventListener('click',()=>{ blkDef.m=blkDef.m||{}; blkDef.m[k]=blkDef.m[k]?0:1; save(); renderAll(); });
+      mutes.appendChild(m);
+    }
+    b.appendChild(mutes);
+    lane.appendChild(b); arrBlockEls.push(b);
+  });
+  const add=el('button','mini-btn','+');
+  add.title='Add a 4-bar block';
+  add.addEventListener('click',()=>{ if(st.arr.blocks.length<16){ st.arr.blocks.push({p:'A',m:{}}); save(); renderAll(); } });
+  const rem=el('button','mini-btn','&minus;');
+  rem.title='Remove the last block';
+  rem.addEventListener('click',()=>{ if(st.arr.blocks.length>1){ st.arr.blocks.pop(); save(); renderAll(); } });
+  const tail=el('div','blk'); tail.style.cssText='flex-direction:row;border:none;background:none';
+  tail.append(add,rem);
+  lane.appendChild(tail);
+  p.appendChild(lane);
+}
+let curArrBlk=-1;
+function setArrPlayhead(i){
+  if(i===curArrBlk)return;
+  arrBlockEls.forEach((b,j)=>b.classList.toggle('ph',j===i));
+  curArrBlk=i;
+}
+function renderAll(){ buildHeader(); buildTheory(); buildRacks(); buildSound(); buildPads(); buildSong(); }
 
 /* =============================== playhead =============================== */
 let curCol=-1,curBar=-1;
@@ -1303,7 +1472,7 @@ function drawViz(ts){
   requestAnimationFrame(drawViz);
   const dt=Math.min(.05,(ts-lastFrame)/1000||.016); lastFrame=ts;
   const now=ac?ac.currentTime:0;
-  while(uiQ.length&&uiQ[0].t<=now){ const e=uiQ.shift(); setPlayhead(e.s,e.bar); }
+  while(uiQ.length&&uiQ[0].t<=now){ const e=uiQ.shift(); setPlayhead(e.s,e.bar); setArrPlayhead(e.blk==null?-1:e.blk); }
   while(vizQ.length&&vizQ[0].t<=now+.02){ spawn(vizQ.shift()); }
   if(reduceMotion){ drawScene(0); drawParts(); return; }
   gridT+=dt*(playing?st.bpm/60*.9:.25);

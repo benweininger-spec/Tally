@@ -18,10 +18,10 @@ Feature summary is in README.md. Architecture, in one paragraph: a lookahead sch
 ## Roadmap (agreed with Ben)
 
 1. **Genre presets**: a genre picker seeding BPM, drum template, swing, scale, and patch kit (house, lo-fi, synthwave, DnB, reggaeton, phonk, bossa, ambient...). Idiomatic BPM/key/character data can be adapted from the claude-music repo's `references/genre-recipes.md` (see below).
-2. **Song sections**: A/B patterns per track plus an arrangement lane (intro / groove / breakdown / drop). Biggest structural upgrade; currently one 4-bar loop.
-3. **ACE-Step on Ben's Mac** (M1 Max, 32-core GPU, 64GB unified memory, no CUDA):
-   - Install ACE-Step 1.5 (https://github.com/ace-step/ACE-Step-1.5). It supports Apple Silicon via MPS/MLX; use its macOS launch scripts (`start_gradio_ui_macos.sh`, `start_api_server_macos.sh`) or the portable macOS package. 64GB is ample; expect generation to take minutes, not the advertised seconds (those are CUDA numbers).
-   - Optional: the claude-music Claude Code plugin (https://github.com/AgriciDaniel/claude-music) wraps ACE-Step with `/music` skills. Vetted at commit 5aa0173 (2026-08-26): clean, no telemetry, localhost-only dashboard, real threat model. **But it is CUDA-only as shipped**: `scripts/music_engine.py` hardcodes `device="cuda"`, `detect_gpu.sh`/`check_deps.sh` gate on `nvidia-smi`, and the default config enables flash attention. To use on the Mac, patch device selection to fall back to `mps`, bypass the nvidia-smi gates, and disable flash attention; consider offering the patch upstream as a PR.
+2. ~~**Song sections**~~ DONE 2026-08-27: every track has A/B patterns (`on`/`onB`, `steps`/`stepsB`), a Song panel with an arrangement lane of 4-bar blocks (each block picks A or B and can mute drums/bass/chords/lead), presets, and loop vs song mode (`st.arr`). The scheduler walks blocks via `step64 % (64*blocks)`.
+3. ~~**ACE-Step on Ben's Mac**~~ DONE 2026-08-26: installed at `~/WORKSHOP/ACE-Step-1.5` (MLX backend, no CUDA patching needed for 1.5). The "ACE dreams" panel in index.html talks to the local API server (`start_api_server_macos.sh`, port 8001, CORS already allows file:// and localhost). A 30s track renders in ~35s once models are warm. The claude-music plugin note still applies if ever wanted (CUDA-only as shipped; vetted at 5aa0173).
+4. **Harmony engine** DONE 2026-08-27: `st.voicing` (triads/7ths/9ths) via `chordTones`/`chordCentsFor`, voice-led chord movement (`voiceLead`, reset on play), and a `st.smart` toggle: lead strong beats snap to the bar's chord tones in the scheduler, bass gets pickup notes into the next bar's chord when following. All cents-based, so it coexists with maqamat (drone progressions bypass it).
+5. **Next ideas**: genre presets (item 1); ACE style-transfer of the actual loop (record master bus with MediaRecorder, send as reference audio to `cover` task).
 
 ## Working locally vs in the cloud
 
