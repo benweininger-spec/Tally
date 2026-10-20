@@ -87,7 +87,21 @@ class MediaBridgeModule : Module() {
       emptyList()
     }
 
-  private fun readActive(): MediaController? = controllers().firstOrNull()
+  /**
+   * Pick the session that matters. FYT/Dasaita units keep several EMPTY sessions open
+   * (the stock Telenav launcher holds three), so "first" is usually a blank one. Prefer:
+   * playing + has a title → any with a title → the Bluetooth A2DP/AVRCP session → first.
+   */
+  private fun pick(list: List<MediaController>): MediaController? {
+    fun title(c: MediaController) = c.metadata?.getString(MediaMetadata.METADATA_KEY_TITLE)?.isNotBlank() == true
+    fun playing(c: MediaController) = c.playbackState?.state == PlaybackState.STATE_PLAYING
+    return list.firstOrNull { playing(it) && title(it) }
+      ?: list.firstOrNull { title(it) }
+      ?: list.firstOrNull { it.packageName == "com.android.bluetooth" }
+      ?: list.firstOrNull()
+  }
+
+  private fun readActive(): MediaController? = pick(controllers())
 
   private inline fun transport(block: (MediaController.TransportControls) -> Unit) {
     readActive()?.transportControls?.let(block)
@@ -113,7 +127,7 @@ class MediaBridgeModule : Module() {
   }
 
   private fun attach(list: List<MediaController>) {
-    val top = list.firstOrNull()
+    val top = pick(list)
     if (top === watched) return
     detach()
     if (top == null) return
