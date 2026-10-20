@@ -1,0 +1,35 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="expo.modules.mediabridge" >
+4
+5    <uses-sdk android:minSdkVersion="24" />
+6
+7    <application>
+7-->/Users/benjaminweininger/Desktop/2TR-FE/2TR-FE/modules/media-bridge/android/src/main/AndroidManifest.xml:2:3-18:17
+8
+9        <!--
+10      Notification Listener service. The system holds BIND_NOTIFICATION_LISTENER_SERVICE,
+11      so we only declare it on the service (no <uses-permission> needed). Once the user
+12      enables this listener in Settings, MediaSessionManager.getActiveSessions works.
+13      The Gradle manifest merger folds this into the app manifest automatically.
+14        -->
+15        <service
+15-->/Users/benjaminweininger/Desktop/2TR-FE/2TR-FE/modules/media-bridge/android/src/main/AndroidManifest.xml:9:5-17:15
+16            android:name="expo.modules.mediabridge.MediaBridgeNotificationListenerService"
+16-->/Users/benjaminweininger/Desktop/2TR-FE/2TR-FE/modules/media-bridge/android/src/main/AndroidManifest.xml:10:7-61
+17            android:exported="false"
+17-->/Users/benjaminweininger/Desktop/2TR-FE/2TR-FE/modules/media-bridge/android/src/main/AndroidManifest.xml:13:7-31
+18            android:label="Tacoma Dash Media"
+18-->/Users/benjaminweininger/Desktop/2TR-FE/2TR-FE/modules/media-bridge/android/src/main/AndroidManifest.xml:11:7-40
+19            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE" >
+19-->/Users/benjaminweininger/Desktop/2TR-FE/2TR-FE/modules/media-bridge/android/src/main/AndroidManifest.xml:12:7-81
+20            <intent-filter>
+20-->/Users/benjaminweininger/Desktop/2TR-FE/2TR-FE/modules/media-bridge/android/src/main/AndroidManifest.xml:14:7-16:23
+21                <action android:name="android.service.notification.NotificationListenerService" />
+21-->/Users/benjaminweininger/Desktop/2TR-FE/2TR-FE/modules/media-bridge/android/src/main/AndroidManifest.xml:15:9-91
+21-->/Users/benjaminweininger/Desktop/2TR-FE/2TR-FE/modules/media-bridge/android/src/main/AndroidManifest.xml:15:17-88
+22            </intent-filter>
+23        </service>
+24    </application>
+25
+26</manifest>

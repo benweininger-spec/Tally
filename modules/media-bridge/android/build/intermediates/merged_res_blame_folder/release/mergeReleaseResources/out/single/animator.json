@@ -1,0 +1,26 @@
+[
+    {
+        "merged": "expo.modules.mediabridge.media-bridge-release-29:/animator/fragment_open_exit.xml",
+        "source": "expo.modules.mediabridge.media-bridge-fragment-1.5.4-0:/animator/fragment_open_exit.xml"
+    },
+    {
+        "merged": "expo.modules.mediabridge.media-bridge-release-29:/animator/fragment_close_exit.xml",
+        "source": "expo.modules.mediabridge.media-bridge-fragment-1.5.4-0:/animator/fragment_close_exit.xml"
+    },
+    {
+        "merged": "expo.modules.mediabridge.media-bridge-release-29:/animator/fragment_fade_enter.xml",
+        "source": "expo.modules.mediabridge.media-bridge-fragment-1.5.4-0:/animator/fragment_fade_enter.xml"
+    },
+    {
+        "merged": "expo.modules.mediabridge.media-bridge-release-29:/animator/fragment_fade_exit.xml",
+        "source": "expo.modules.mediabridge.media-bridge-fragment-1.5.4-0:/animator/fragment_fade_exit.xml"
+    },
+    {
+        "merged": "expo.modules.mediabridge.media-bridge-release-29:/animator/fragment_close_enter.xml",
+        "source": "expo.modules.mediabridge.media-bridge-fragment-1.5.4-0:/animator/fragment_close_enter.xml"
+    },
+    {
+        "merged": "expo.modules.mediabridge.media-bridge-release-29:/animator/fragment_open_enter.xml",
+        "source": "expo.modules.mediabridge.media-bridge-fragment-1.5.4-0:/animator/fragment_open_enter.xml"
+    }
+]

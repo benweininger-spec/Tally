@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="expo.modules.mediabridge" >
+
+    <uses-sdk android:minSdkVersion="24" />
+
+    <application>
+
+        <!--
+      Notification Listener service. The system holds BIND_NOTIFICATION_LISTENER_SERVICE,
+      so we only declare it on the service (no <uses-permission> needed). Once the user
+      enables this listener in Settings, MediaSessionManager.getActiveSessions works.
+      The Gradle manifest merger folds this into the app manifest automatically.
+        -->
+        <service
+            android:name="expo.modules.mediabridge.MediaBridgeNotificationListenerService"
+            android:exported="false"
+            android:label="Tacoma Dash Media"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE" >
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+    </application>
+
+</manifest>

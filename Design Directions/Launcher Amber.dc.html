@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<meta name="design_doc_mode" content="canvas">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  @keyframes sway{0%{transform:rotate(-5.5deg)}100%{transform:rotate(5.5deg)}}
+  @keyframes pitchSway{0%{transform:translateY(-12px)}100%{transform:translateY(14px)}}
+  @keyframes cometMove{to{stroke-dashoffset:-1040}}
+  @keyframes roseSway{0%{transform:rotate(-9deg)}100%{transform:rotate(9deg)}}
+  @keyframes puckV{0%{transform:translateY(96px)}30%{transform:translateY(-70px)}55%{transform:translateY(-20px)}80%{transform:translateY(58px)}100%{transform:translateY(96px)}}
+  @keyframes puckH{0%{transform:translateX(-78px)}25%{transform:translateX(64px)}50%{transform:translateX(-30px)}75%{transform:translateX(80px)}100%{transform:translateX(-78px)}}
+  @keyframes barPulse{0%,100%{transform:scaleY(.62)}50%{transform:scaleY(1)}}
+  @keyframes blink{0%,100%{opacity:.25}50%{opacity:1}}
+  .scan{position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(255,200,120,.04) 0 1px,transparent 1px 3px);mix-blend-mode:overlay;opacity:.5}
+  .mono{font-family:'JetBrains Mono',monospace}
+</style>
+</helmet>
+
+<!-- ===================== FRAME 1 · TRAIL (inclinometer) ===================== -->
+<div style="position:absolute;left:0;top:0;width:2000px">
+  <div data-drags-parent="1" class="mono" style="font-weight:600;font-size:22px;letter-spacing:.32em;text-transform:uppercase;color:#9a7f54;padding:10px 6px 16px">A — Trail · gyro inclinometer</div>
+  <div data-screen-label="Trail" style="position:relative;width:2000px;height:1200px;background:#0c0a07;border-radius:8px;box-shadow:0 36px 90px rgba(0,0,0,.55);overflow:hidden;font-family:Oxanium,sans-serif;color:#F4E6CF">
+    <!-- header -->
+    <div style="position:absolute;top:0;left:0;right:0;height:92px;padding:0 48px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(244,162,58,.18)">
+      <div class="mono" style="font-size:18px;letter-spacing:.22em;color:#9a7f54">TACOMA · SR <span style="color:#5a4a30">/</span> OFF-ROAD</div>
+      <div class="mono" style="display:flex;align-items:center;gap:32px;font-size:18px;letter-spacing:.14em;color:#c9a96f">
+        <span style="color:#FFB454">{{ time }} <span style="color:#9a7f54">{{ ampm }}</span></span><span style="color:#9a7f54">LTE</span><span style="color:#9a7f54">WI-FI</span><span style="color:#FFB454">14.2<span style="color:#9a7f54;font-size:13px">V</span></span>
+      </div>
+    </div>
+    <!-- left telemetry -->
+    <div style="position:absolute;left:96px;top:188px;width:340px">
+      <div class="mono" style="font-size:16px;letter-spacing:.32em;color:#9a7f54">GROUND SPEED</div>
+      <div style="display:flex;align-items:flex-start;gap:10px"><div style="font-size:170px;line-height:.82;font-weight:700;color:#FFB454;font-variant-numeric:tabular-nums;text-shadow:0 0 30px rgba(255,180,84,.35)">{{ speed }}</div><div class="mono" style="font-size:18px;color:#c9a96f;margin-top:16px">MPH</div></div>
+      <div style="margin-top:38px;display:flex;flex-direction:column;gap:24px">
+        <div><div class="mono" style="font-size:14px;letter-spacing:.22em;color:#9a7f54">GRADE</div><div style="font-size:56px;font-weight:600;line-height:1">{{ pitch }}<span style="font-size:26px;color:#c9a96f">°</span></div></div>
+        <div><div class="mono" style="font-size:14px;letter-spacing:.22em;color:#9a7f54">ALTITUDE</div><div style="font-size:56px;font-weight:600;line-height:1">1,284<span style="font-size:24px;color:#c9a96f"> ft</span></div></div>
+        <div><div class="mono" style="font-size:14px;letter-spacing:.22em;color:#9a7f54">HEADING</div><div style="font-size:56px;font-weight:600;line-height:1">{{ hdg }}<span style="font-size:26px;color:#c9a96f;margin-left:6px">{{ card }}</span></div></div>
+      </div>
+    </div>
+    <!-- inclinometer hero -->
+    <div style="position:absolute;left:720px;top:150px;width:560px;height:560px">
+      <svg viewBox="0 0 400 400" style="width:100%;height:100%">
+        <defs><clipPath id="incA"><circle cx="200" cy="200" r="176"></circle></clipPath></defs>
+        <circle cx="200" cy="200" r="178" fill="none" stroke="rgba(244,162,58,.28)" stroke-width="2"></circle>
+        <g clip-path="url(#incA)">
+          <g style="transform-origin:200px 200px;animation:sway 8s ease-in-out infinite alternate">
+            <g style="transform-origin:200px 200px;animation:pitchSway 6.5s ease-in-out infinite alternate">
+              <rect x="-120" y="-200" width="640" height="400" fill="rgba(244,162,58,.04)"></rect>
+              <rect x="-120" y="200" width="640" height="400" fill="rgba(244,162,58,.14)"></rect>
+              <line x1="-120" y1="200" x2="520" y2="200" stroke="#FFB454" stroke-width="2.5"></line>
+              <sc-for list="{{ pitchLines }}" as="p" hint-placeholder-count="4"><line x1="{{ p.x1 }}" y1="{{ p.y }}" x2="{{ p.x2 }}" y2="{{ p.y }}" stroke="rgba(244,162,58,.5)" stroke-width="1.6"></line></sc-for>
+            </g>
+          </g>
+        </g>
+        <!-- fixed reference -->
+        <line x1="150" y1="200" x2="182" y2="200" stroke="#FFB454" stroke-width="3"></line>
+        <line x1="218" y1="200" x2="250" y2="200" stroke="#FFB454" stroke-width="3"></line>
+        <circle cx="200" cy="200" r="3.5" fill="#FFB454"></circle>
+        <polygon points="200,34 192,52 208,52" fill="#FFB454"></polygon>
+      </svg>
+      <div class="mono" style="position:absolute;top:14px;left:50%;transform:translateX(-50%);font-size:13px;letter-spacing:.3em;color:#9a7f54">INCLINOMETER · GYRO</div>
+      <div style="position:absolute;bottom:-6px;left:0;right:0;display:flex;justify-content:space-between"><div style="text-align:center"><div class="mono" style="font-size:13px;letter-spacing:.2em;color:#9a7f54">PITCH</div><div style="font-size:34px;font-weight:700">{{ pitch }}°</div></div><div style="text-align:center"><div class="mono" style="font-size:13px;letter-spacing:.2em;color:#9a7f54">ROLL</div><div style="font-size:34px;font-weight:700">{{ roll }}°</div></div></div>
+    </div>
+    <!-- right: traction -->
+    <div style="position:absolute;left:1560px;top:178px;width:344px;display:flex;flex-direction:column;align-items:center;gap:18px">
+      <div class="mono" style="font-size:14px;letter-spacing:.3em;color:#9a7f54;align-self:flex-start">TRACTION · G-FORCE</div>
+      <svg viewBox="0 0 360 360" style="width:300px;height:300px">
+        <line x1="180" y1="24" x2="180" y2="336" stroke="rgba(244,162,58,.16)" stroke-width="1"></line>
+        <line x1="24" y1="180" x2="336" y2="180" stroke="rgba(244,162,58,.16)" stroke-width="1"></line>
+        <sc-for list="{{ gRings }}" as="g" hint-placeholder-count="4"><circle cx="180" cy="180" r="{{ g.r }}" fill="none" stroke="rgba(244,162,58,.32)" stroke-width="1.3"></circle></sc-for>
+        <path d="M180,180 C150,110 88,128 112,182 C132,228 82,268 150,258 C212,249 198,198 242,220 C286,241 290,176 254,144 C223,116 250,92 204,110 C176,121 206,150 180,180 Z" fill="none" stroke="rgba(255,180,84,.18)" stroke-width="1.5"></path>
+        <circle r="8" fill="#FFB454" style="filter:drop-shadow(0 0 7px rgba(255,180,84,.9))"><animateMotion dur="9s" repeatCount="indefinite" path="M180,180 C150,110 88,128 112,182 C132,228 82,268 150,258 C212,249 198,198 242,220 C286,241 290,176 254,144 C223,116 250,92 204,110 C176,121 206,150 180,180 Z"></animateMotion></circle>
+      </svg>
+      <div style="display:flex;gap:34px"><div style="text-align:center"><div class="mono" style="font-size:13px;color:#9a7f54">LAT</div><div style="font-size:30px;font-weight:700;color:#FFB454">{{ latG }}<span style="font-size:15px;color:#c9a96f">g</span></div></div><div style="text-align:center"><div class="mono" style="font-size:13px;color:#9a7f54">LONG</div><div style="font-size:30px;font-weight:700;color:#FFB454">{{ longG }}<span style="font-size:15px;color:#c9a96f">g</span></div></div></div>
+    </div>
+    <!-- sensor strip -->
+    <div style="position:absolute;left:96px;top:812px;width:1808px;display:flex;gap:18px">
+      <sc-for list="{{ strip }}" as="s" hint-placeholder-count="5"><div style="flex:1;border:1px solid rgba(244,162,58,.18);border-radius:6px;padding:14px 18px"><div class="mono" style="font-size:13px;letter-spacing:.2em;color:#9a7f54">{{ s.k }}</div><div style="font-size:30px;font-weight:600;margin-top:2px">{{ s.v }}</div></div></sc-for>
+    </div>
+    <!-- bottom: media + dock -->
+    <div style="position:absolute;left:96px;bottom:48px;width:1808px;height:120px;display:flex;gap:20px">
+      <div style="flex:2;border:1px solid rgba(244,162,58,.2);border-radius:6px;padding:0 22px;display:flex;align-items:center;gap:16px">
+        <div style="width:72px;height:72px;border:1px solid rgba(244,162,58,.28);background:repeating-linear-gradient(45deg,rgba(244,162,58,.1) 0 6px,transparent 6px 12px);flex:none"></div>
+        <div style="flex:1;min-width:0"><div style="font-size:22px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Midnight City</div><div class="mono" style="font-size:14px;color:#c9a96f">M83 · A2DP</div></div>
+        <div style="display:flex;gap:10px"><div style="width:54px;height:54px;border:1px solid rgba(244,162,58,.22);border-radius:5px;display:flex;align-items:center;justify-content:center;color:#c9a96f">‹‹</div><div style="width:54px;height:54px;border:1px solid #F4A23A;border-radius:5px;display:flex;align-items:center;justify-content:center;color:#FFB454">▶</div><div style="width:54px;height:54px;border:1px solid rgba(244,162,58,.22);border-radius:5px;display:flex;align-items:center;justify-content:center;color:#c9a96f">››</div></div>
+      </div>
+      <div style="flex:1.1;border:1px solid #F4A23A;border-radius:6px;background:rgba(244,162,58,.1);display:flex;flex-direction:column;justify-content:center;padding:0 22px"><div style="font-size:24px;font-weight:700;color:#FFB454">CarPlay</div><div class="mono" style="font-size:12px;letter-spacing:.2em;color:#c9a96f">WIRELESS · LAUNCH</div></div>
+      <div style="flex:.6;border:1px solid rgba(244,162,58,.2);border-radius:6px;display:flex;align-items:center;justify-content:center" class="mono"><span style="font-size:15px;letter-spacing:.18em;color:#d9bd8c">MAPS</span></div>
+      <div style="flex:.6;border:1px solid rgba(244,162,58,.2);border-radius:6px;display:flex;align-items:center;justify-content:center" class="mono"><span style="font-size:15px;letter-spacing:.18em;color:#d9bd8c">CAM</span></div>
+      <div style="flex:.6;border:1px solid rgba(244,162,58,.2);border-radius:6px;display:flex;align-items:center;justify-content:center" class="mono"><span style="font-size:15px;letter-spacing:.18em;color:#d9bd8c">SET</span></div>
+    </div>
+    <div class="scan"></div>
+  </div>
+</div>
+
+<!-- ===================== FRAME 2 · GRIP (g-force telemetry) ===================== -->
+<div style="position:absolute;left:0;top:1380px;width:2000px">
+  <div data-drags-parent="1" class="mono" style="font-weight:600;font-size:22px;letter-spacing:.32em;text-transform:uppercase;color:#9a7f54;padding:10px 6px 16px">B — Grip · g-force telemetry</div>
+  <div data-screen-label="Grip" style="position:relative;width:2000px;height:1200px;background:#0c0a07;border-radius:8px;box-shadow:0 36px 90px rgba(0,0,0,.55);overflow:hidden;font-family:Oxanium,sans-serif;color:#F4E6CF">
+    <div style="position:absolute;top:0;left:0;right:0;height:92px;padding:0 48px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(244,162,58,.18)">
+      <div class="mono" style="font-size:18px;letter-spacing:.22em;color:#9a7f54">TACOMA · SR <span style="color:#5a4a30">/</span> SPORT</div>
+      <div class="mono" style="display:flex;align-items:center;gap:32px;font-size:18px;letter-spacing:.14em;color:#c9a96f"><span style="color:#FFB454">{{ time }} <span style="color:#9a7f54">{{ ampm }}</span></span><span style="color:#9a7f54">LTE</span><span style="color:#9a7f54">WI-FI</span><span style="color:#FFB454">14.2<span style="color:#9a7f54;font-size:13px">V</span></span></div>
+    </div>
+    <!-- speed top-left -->
+    <div style="position:absolute;left:96px;top:128px">
+      <div class="mono" style="font-size:16px;letter-spacing:.32em;color:#9a7f54">GROUND SPEED · GPS</div>
+      <div style="display:flex;align-items:flex-start;gap:12px"><div style="font-size:200px;line-height:.8;font-weight:700;color:#FFB454;font-variant-numeric:tabular-nums;text-shadow:0 0 30px rgba(255,180,84,.35)">{{ speed }}</div><div class="mono" style="font-size:20px;color:#c9a96f;margin-top:18px">MPH</div></div>
+    </div>
+    <!-- long-G vertical bar -->
+    <div style="position:absolute;left:150px;top:430px;width:120px">
+      <div class="mono" style="font-size:13px;letter-spacing:.22em;color:#9a7f54;text-align:center;margin-bottom:10px">ACCEL</div>
+      <div style="position:relative;height:300px;border:1px solid rgba(244,162,58,.2);border-radius:8px;overflow:hidden;background:linear-gradient(180deg,rgba(244,162,58,.05),rgba(0,0,0,0),rgba(244,162,58,.05))">
+        <div style="position:absolute;top:50%;left:0;right:0;height:1px;background:rgba(244,162,58,.4)"></div>
+        <div style="position:absolute;left:50%;top:50%;width:54px;height:22px;margin-left:-27px;margin-top:-11px;background:#FFB454;border-radius:4px;box-shadow:0 0 14px rgba(255,180,84,.7);animation:puckV 5.5s ease-in-out infinite"></div>
+      </div>
+      <div class="mono" style="font-size:13px;letter-spacing:.22em;color:#9a7f54;text-align:center;margin-top:10px">BRAKE</div>
+      <div style="text-align:center;margin-top:14px"><div style="font-size:40px;font-weight:700;color:#FFB454">{{ longG }}<span style="font-size:18px;color:#c9a96f">g</span></div></div>
+    </div>
+    <!-- 0-60 -->
+    <div style="position:absolute;left:96px;top:900px;width:226px;border:1px solid rgba(244,162,58,.2);border-radius:8px;padding:18px">
+      <div class="mono" style="font-size:13px;letter-spacing:.22em;color:#9a7f54">0 — 60 MPH</div>
+      <div style="font-size:52px;font-weight:700;color:#F4E6CF">9.4<span style="font-size:22px;color:#c9a96f">s</span></div>
+      <div class="mono" style="font-size:12px;color:#7a6240">BEST · ARMED</div>
+    </div>
+    <!-- traction hero center -->
+    <div style="position:absolute;left:660px;top:150px;width:600px;height:600px">
+      <svg viewBox="0 0 360 360" style="width:100%;height:100%">
+        <line x1="180" y1="14" x2="180" y2="346" stroke="rgba(244,162,58,.16)" stroke-width="1"></line>
+        <line x1="14" y1="180" x2="346" y2="180" stroke="rgba(244,162,58,.16)" stroke-width="1"></line>
+        <sc-for list="{{ gRings }}" as="g" hint-placeholder-count="4"><circle cx="180" cy="180" r="{{ g.r }}" fill="none" stroke="rgba(244,162,58,.3)" stroke-width="1.3"></circle></sc-for>
+        <sc-for list="{{ gRingLabels }}" as="g" hint-placeholder-count="4"><text x="186" y="{{ g.y }}" class="mono" fill="#9a7f54" font-size="11" font-family="'JetBrains Mono',monospace">{{ g.t }}</text></sc-for>
+        <path d="M180,180 C150,110 88,128 112,182 C132,228 82,268 150,258 C212,249 198,198 242,220 C286,241 290,176 254,144 C223,116 250,92 204,110 C176,121 206,150 180,180 Z" fill="none" stroke="rgba(255,180,84,.2)" stroke-width="1.5"></path>
+        <circle r="9" fill="#FFB454" style="filter:drop-shadow(0 0 9px rgba(255,180,84,.95))"><animateMotion dur="9s" repeatCount="indefinite" path="M180,180 C150,110 88,128 112,182 C132,228 82,268 150,258 C212,249 198,198 242,220 C286,241 290,176 254,144 C223,116 250,92 204,110 C176,121 206,150 180,180 Z"></animateMotion></circle>
+      </svg>
+      <div class="mono" style="position:absolute;top:8px;left:50%;transform:translateX(-50%);font-size:13px;letter-spacing:.3em;color:#9a7f54">FRICTION CIRCLE · COMBINED G</div>
+      <div style="position:absolute;left:50%;bottom:64px;transform:translateX(-50%);text-align:center"><div style="font-size:64px;font-weight:700;color:#FFB454;line-height:1">{{ combG }}<span style="font-size:24px;color:#c9a96f">g</span></div><div class="mono" style="font-size:12px;letter-spacing:.2em;color:#9a7f54">PEAK 0.82g</div></div>
+    </div>
+    <!-- right rail -->
+    <div style="position:absolute;left:1420px;top:128px;width:484px;display:flex;flex-direction:column;gap:18px">
+      <!-- lateral g horizontal -->
+      <div style="border:1px solid rgba(244,162,58,.2);border-radius:8px;padding:18px">
+        <div class="mono" style="font-size:13px;letter-spacing:.22em;color:#9a7f54;display:flex;justify-content:space-between"><span>← LATERAL G →</span><span style="color:#FFB454">{{ latG }}g</span></div>
+        <div style="position:relative;height:40px;margin-top:12px;border:1px solid rgba(244,162,58,.2);border-radius:6px;overflow:hidden">
+          <div style="position:absolute;left:50%;top:0;bottom:0;width:1px;background:rgba(244,162,58,.4)"></div>
+          <div style="position:absolute;left:50%;top:50%;width:22px;height:28px;margin-left:-11px;margin-top:-14px;background:#FFB454;border-radius:4px;box-shadow:0 0 12px rgba(255,180,84,.7);animation:puckH 6s ease-in-out infinite"></div>
+        </div>
+      </div>
+      <!-- pulse waveform -->
+      <div style="border:1px solid rgba(244,162,58,.2);border-radius:8px;padding:18px">
+        <div class="mono" style="font-size:13px;letter-spacing:.22em;color:#9a7f54;margin-bottom:8px">DRIVE PULSE</div>
+        <svg viewBox="0 0 440 110" preserveAspectRatio="none" style="width:100%;height:96px">
+          <path d="{{ pulseD }}" fill="none" stroke="rgba(244,162,58,.22)" stroke-width="2"></path>
+          <path d="{{ pulseD }}" fill="none" stroke="#FFB454" stroke-width="3" stroke-linecap="round" stroke-dasharray="120 700" style="filter:drop-shadow(0 0 6px rgba(255,180,84,.7));animation:cometMove 2.2s linear infinite"></path>
+        </svg>
+      </div>
+      <!-- media -->
+      <div style="border:1px solid rgba(244,162,58,.2);border-radius:8px;padding:18px">
+        <div class="mono" style="font-size:13px;letter-spacing:.22em;color:#9a7f54;margin-bottom:12px">NOW PLAYING · A2DP</div>
+        <div style="display:flex;gap:14px;align-items:center">
+          <div style="width:76px;height:76px;border:1px solid rgba(244,162,58,.28);background:repeating-linear-gradient(45deg,rgba(244,162,58,.1) 0 6px,transparent 6px 12px);flex:none"></div>
+          <div style="flex:1;min-width:0"><div style="font-size:22px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Nightcall</div><div class="mono" style="font-size:13px;color:#c9a96f">Kavinsky</div></div>
+        </div>
+        <div style="display:flex;gap:12px;margin-top:14px"><div style="flex:1;height:52px;border:1px solid rgba(244,162,58,.22);border-radius:5px;display:flex;align-items:center;justify-content:center;color:#c9a96f">‹‹</div><div style="flex:1.6;height:52px;border:1px solid #F4A23A;border-radius:5px;display:flex;align-items:center;justify-content:center;color:#FFB454">▶</div><div style="flex:1;height:52px;border:1px solid rgba(244,162,58,.22);border-radius:5px;display:flex;align-items:center;justify-content:center;color:#c9a96f">››</div></div>
+      </div>
+    </div>
+    <!-- dock -->
+    <div style="position:absolute;left:660px;bottom:48px;width:1244px;height:108px;display:flex;gap:18px">
+      <div style="flex:1.5;border:1px solid #F4A23A;border-radius:6px;background:rgba(244,162,58,.1);display:flex;flex-direction:column;justify-content:center;padding:0 22px"><div style="font-size:24px;font-weight:700;color:#FFB454">CarPlay</div><div class="mono" style="font-size:12px;letter-spacing:.2em;color:#c9a96f">WIRELESS · LAUNCH</div></div>
+      <div style="flex:1;border:1px solid rgba(244,162,58,.2);border-radius:6px;display:flex;align-items:center;justify-content:center" class="mono"><span style="font-size:15px;letter-spacing:.18em;color:#d9bd8c">MAPS</span></div>
+      <div style="flex:1;border:1px solid rgba(244,162,58,.2);border-radius:6px;display:flex;align-items:center;justify-content:center" class="mono"><span style="font-size:15px;letter-spacing:.18em;color:#d9bd8c">WAZE</span></div>
+      <div style="flex:1;border:1px solid rgba(244,162,58,.2);border-radius:6px;display:flex;align-items:center;justify-content:center" class="mono"><span style="font-size:15px;letter-spacing:.18em;color:#d9bd8c">SPOTIFY</span></div>
+      <div style="flex:1;border:1px solid rgba(244,162,58,.2);border-radius:6px;display:flex;align-items:center;justify-content:center" class="mono"><span style="font-size:15px;letter-spacing:.18em;color:#d9bd8c">CAMERA</span></div>
+    </div>
+    <div class="scan"></div>
+  </div>
+</div>
+
+<!-- ===================== FRAME 3 · CLUSTER (twin-pod) ===================== -->
+<div style="position:absolute;left:0;top:2760px;width:2000px">
+  <div data-drags-parent="1" class="mono" style="font-weight:600;font-size:22px;letter-spacing:.32em;text-transform:uppercase;color:#9a7f54;padding:10px 6px 16px">C — Cluster · twin-pod instrument</div>
+  <div data-screen-label="Cluster" style="position:relative;width:2000px;height:1200px;background:#0c0a07;border-radius:8px;box-shadow:0 36px 90px rgba(0,0,0,.55);overflow:hidden;font-family:Oxanium,sans-serif;color:#F4E6CF">
+    <div style="position:absolute;top:0;left:0;right:0;height:92px;padding:0 48px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(244,162,58,.18)">
+      <div class="mono" style="font-size:18px;letter-spacing:.22em;color:#9a7f54">TACOMA · SR <span style="color:#5a4a30">/</span> 2TR-FE</div>
+      <div class="mono" style="display:flex;align-items:center;gap:32px;font-size:18px;letter-spacing:.14em;color:#c9a96f"><span style="color:#FFB454">{{ time }} <span style="color:#9a7f54">{{ ampm }}</span></span><span style="color:#9a7f54">LTE</span><span style="color:#9a7f54">WI-FI</span><span style="color:#FFB454">14.2<span style="color:#9a7f54;font-size:13px">V</span></span></div>
+    </div>
+    <!-- left pod: arc speedo -->
+    <div style="position:absolute;left:90px;top:150px;width:540px;height:540px">
+      <svg viewBox="0 0 400 360" style="width:100%;height:100%">
+        <sc-for list="{{ speedoTicks }}" as="t" hint-placeholder-count="46"><line x1="{{ t.x1 }}" y1="{{ t.y1 }}" x2="{{ t.x2 }}" y2="{{ t.y2 }}" stroke="{{ t.c }}" stroke-width="{{ t.w }}" stroke-linecap="round"></line></sc-for>
+      </svg>
+      <div style="position:absolute;left:0;right:0;top:170px;text-align:center"><div style="font-size:150px;line-height:.82;font-weight:700;color:#FFB454;font-variant-numeric:tabular-nums;text-shadow:0 0 28px rgba(255,180,84,.35)">{{ speed }}</div><div class="mono" style="font-size:16px;letter-spacing:.3em;color:#9a7f54;margin-top:4px">MPH · GPS</div></div>
+    </div>
+    <!-- center stack -->
+    <div style="position:absolute;left:700px;top:140px;width:600px;display:flex;flex-direction:column;align-items:center;gap:18px">
+      <!-- mini horizon -->
+      <svg viewBox="0 0 400 400" style="width:300px;height:300px">
+        <defs><clipPath id="incC"><circle cx="200" cy="200" r="176"></circle></clipPath></defs>
+        <circle cx="200" cy="200" r="178" fill="none" stroke="rgba(244,162,58,.28)" stroke-width="2"></circle>
+        <g clip-path="url(#incC)"><g style="transform-origin:200px 200px;animation:sway 8s ease-in-out infinite alternate"><g style="transform-origin:200px 200px;animation:pitchSway 6.5s ease-in-out infinite alternate">
+          <rect x="-120" y="-200" width="640" height="400" fill="rgba(244,162,58,.04)"></rect>
+          <rect x="-120" y="200" width="640" height="400" fill="rgba(244,162,58,.14)"></rect>
+          <line x1="-120" y1="200" x2="520" y2="200" stroke="#FFB454" stroke-width="2.5"></line>
+          <sc-for list="{{ pitchLines }}" as="p" hint-placeholder-count="4"><line x1="{{ p.x1 }}" y1="{{ p.y }}" x2="{{ p.x2 }}" y2="{{ p.y }}" stroke="rgba(244,162,58,.5)" stroke-width="1.6"></line></sc-for>
+        </g></g></g>
+        <line x1="150" y1="200" x2="182" y2="200" stroke="#FFB454" stroke-width="3"></line>
+        <line x1="218" y1="200" x2="250" y2="200" stroke="#FFB454" stroke-width="3"></line>
+        <circle cx="200" cy="200" r="3.5" fill="#FFB454"></circle>
+      </svg>
+      <div style="display:flex;gap:44px;margin-top:-6px"><div style="text-align:center"><div class="mono" style="font-size:13px;color:#9a7f54">PITCH</div><div style="font-size:32px;font-weight:700">{{ pitch }}°</div></div><div style="text-align:center"><div class="mono" style="font-size:13px;color:#9a7f54">ROLL</div><div style="font-size:32px;font-weight:700">{{ roll }}°</div></div><div style="text-align:center"><div class="mono" style="font-size:13px;color:#9a7f54">COMB G</div><div style="font-size:32px;font-weight:700;color:#FFB454">{{ combG }}</div></div></div>
+    </div>
+    <!-- right pod: compass rose -->
+    <div style="position:absolute;left:1370px;top:150px;width:540px;height:540px">
+      <svg viewBox="0 0 400 400" style="width:100%;height:100%">
+        <circle cx="200" cy="200" r="182" fill="none" stroke="rgba(244,162,58,.28)" stroke-width="2"></circle>
+        <g style="transform-origin:200px 200px;animation:roseSway 12s ease-in-out infinite alternate">
+          <sc-for list="{{ compassTicks }}" as="t" hint-placeholder-count="36"><line x1="{{ t.x1 }}" y1="{{ t.y1 }}" x2="{{ t.x2 }}" y2="{{ t.y2 }}" stroke="{{ t.c }}" stroke-width="{{ t.w }}"></line></sc-for>
+          <text x="200" y="64" text-anchor="middle" fill="#FFB454" font-size="30" font-weight="700" font-family="Oxanium">N</text>
+          <text x="340" y="212" text-anchor="middle" fill="#c9a96f" font-size="26" font-family="Oxanium">E</text>
+          <text x="200" y="350" text-anchor="middle" fill="#c9a96f" font-size="26" font-family="Oxanium">S</text>
+          <text x="60" y="212" text-anchor="middle" fill="#c9a96f" font-size="26" font-family="Oxanium">W</text>
+        </g>
+        <polygon points="200,30 190,52 210,52" fill="#FFB454"></polygon>
+        <circle cx="200" cy="200" r="4" fill="#FFB454"></circle>
+      </svg>
+      <div style="position:absolute;left:0;right:0;top:166px;text-align:center"><div style="font-size:96px;line-height:.85;font-weight:700;font-variant-numeric:tabular-nums">{{ hdg }}</div><div class="mono" style="font-size:18px;letter-spacing:.3em;color:#9a7f54;margin-top:2px">{{ card }} · HEADING</div></div>
+    </div>
+    <!-- center console LCD strip -->
+    <div style="position:absolute;left:700px;top:560px;width:600px;border:1px solid rgba(244,162,58,.22);border-radius:8px;padding:18px 20px;display:grid;grid-template-columns:1fr 1fr;gap:14px 26px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline"><span class="mono" style="font-size:14px;letter-spacing:.18em;color:#9a7f54">ALTITUDE</span><span style="font-size:26px;font-weight:600">1,284 ft</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline"><span class="mono" style="font-size:14px;letter-spacing:.18em;color:#9a7f54">TRIP</span><span style="font-size:26px;font-weight:600">128.6 mi</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline"><span class="mono" style="font-size:14px;letter-spacing:.18em;color:#9a7f54">AVG</span><span style="font-size:26px;font-weight:600">38 mph</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline"><span class="mono" style="font-size:14px;letter-spacing:.18em;color:#9a7f54">SYSTEM</span><span style="font-size:26px;font-weight:600;color:#FFB454">14.2 V</span></div>
+    </div>
+    <!-- bottom media + dock -->
+    <div style="position:absolute;left:90px;bottom:48px;width:1820px;height:120px;display:flex;gap:20px">
+      <div style="flex:2;border:1px solid rgba(244,162,58,.2);border-radius:6px;padding:0 22px;display:flex;align-items:center;gap:16px">
+        <div style="width:72px;height:72px;border:1px solid rgba(244,162,58,.28);background:repeating-linear-gradient(45deg,rgba(244,162,58,.1) 0 6px,transparent 6px 12px);flex:none"></div>
+        <div style="flex:1;min-width:0"><div style="font-size:22px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Disorder</div><div class="mono" style="font-size:14px;color:#c9a96f">Joy Division · A2DP</div></div>
+        <div style="display:flex;gap:10px"><div style="width:54px;height:54px;border:1px solid rgba(244,162,58,.22);border-radius:5px;display:flex;align-items:center;justify-content:center;color:#c9a96f">‹‹</div><div style="width:54px;height:54px;border:1px solid #F4A23A;border-radius:5px;display:flex;align-items:center;justify-content:center;color:#FFB454">▶</div><div style="width:54px;height:54px;border:1px solid rgba(244,162,58,.22);border-radius:5px;display:flex;align-items:center;justify-content:center;color:#c9a96f">››</div></div>
+      </div>
+      <div style="flex:1.1;border:1px solid #F4A23A;border-radius:6px;background:rgba(244,162,58,.1);display:flex;flex-direction:column;justify-content:center;padding:0 22px"><div style="font-size:24px;font-weight:700;color:#FFB454">CarPlay</div><div class="mono" style="font-size:12px;letter-spacing:.2em;color:#c9a96f">WIRELESS · LAUNCH</div></div>
+      <div style="flex:.6;border:1px solid rgba(244,162,58,.2);border-radius:6px;display:flex;align-items:center;justify-content:center" class="mono"><span style="font-size:15px;letter-spacing:.18em;color:#d9bd8c">MAPS</span></div>
+      <div style="flex:.6;border:1px solid rgba(244,162,58,.2);border-radius:6px;display:flex;align-items:center;justify-content:center" class="mono"><span style="font-size:15px;letter-spacing:.18em;color:#d9bd8c">CAM</span></div>
+      <div style="flex:.6;border:1px solid rgba(244,162,58,.2);border-radius:6px;display:flex;align-items:center;justify-content:center" class="mono"><span style="font-size:15px;letter-spacing:.18em;color:#d9bd8c">SET</span></div>
+    </div>
+    <div class="scan"></div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { speed: 41, hdg: 312, pitch: 6, roll: -3, latG: 0.18, longG: 0.12, tick: 0 };
+
+  componentDidMount() {
+    this._iv = setInterval(() => {
+      this.setState(s => {
+        const cl = (v, a, b) => Math.max(a, Math.min(b, v));
+        return {
+          speed: Math.round(cl(s.speed + (Math.random() - 0.48) * 6, 16, 58)),
+          hdg: Math.round((s.hdg + (Math.random() - 0.5) * 5 + 360) % 360),
+          pitch: Math.round(cl(s.pitch + (Math.random() - 0.5) * 3, -14, 16)),
+          roll: Math.round(cl(s.roll + (Math.random() - 0.5) * 3, -12, 12)),
+          latG: cl(s.latG + (Math.random() - 0.5) * 0.18, -0.7, 0.7),
+          longG: cl(s.longG + (Math.random() - 0.5) * 0.16, -0.6, 0.6),
+          tick: s.tick + 1
+        };
+      });
+    }, 1400);
+  }
+  componentWillUnmount() { clearInterval(this._iv); }
+
+  buildGeo() {
+    const pitchLines = [
+      { x1: 165, y: 140, x2: 235, y: 140 },
+      { x1: 178, y: 170, x2: 222, y: 170 },
+      { x1: 178, y: 230, x2: 222, y: 230 },
+      { x1: 165, y: 260, x2: 235, y: 260 }
+    ];
+    const gRings = [{ r: 40 }, { r: 80 }, { r: 120 }, { r: 156 }];
+    const gg = (x, c, w) => Math.exp(-Math.pow((x - c) / w, 2));
+    let pd = 'M0,55';
+    for (let x = 0; x <= 440; x += 4) {
+      let y = 55;
+      y -= 6 * gg(x, 170, 7); y += 12 * gg(x, 200, 4); y -= 48 * gg(x, 210, 5);
+      y += 24 * gg(x, 222, 5); y -= 11 * gg(x, 250, 14); y += Math.sin(x * 0.05) * 1.6;
+      pd += ' L' + x + ',' + y.toFixed(1);
+    }
+    const pulseD = pd;
+    const gRingLabels = [
+      { y: 180 - 40 + 4, t: '.25g' }, { y: 180 - 80 + 4, t: '.5g' },
+      { y: 180 - 120 + 4, t: '.75g' }, { y: 180 - 156 + 4, t: '1g' }
+    ];
+    // compass ticks (rose-local, every 10deg)
+    const compassTicks = [];
+    for (let i = 0; i < 36; i++) {
+      const a = (i * 10 - 90) * Math.PI / 180;
+      const major = i % 9 === 0, mid = i % 3 === 0;
+      const r1 = major ? 150 : (mid ? 158 : 164), r2 = 178;
+      compassTicks.push({
+        x1: (200 + Math.cos(a) * r1).toFixed(1), y1: (200 + Math.sin(a) * r1).toFixed(1),
+        x2: (200 + Math.cos(a) * r2).toFixed(1), y2: (200 + Math.sin(a) * r2).toFixed(1),
+        c: major ? '#FFB454' : 'rgba(244,162,58,.4)', w: major ? 3 : (mid ? 2 : 1.2)
+      });
+    }
+    return { pitchLines, gRings, gRingLabels, compassTicks, pulseD };
+  }
+
+  speedoTicks(speed) {
+    const n = 46, startDeg = 150, sweep = 240, cx = 200, cy = 200, rIn = 120, rOut = 152;
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const frac = i / (n - 1);
+      const a = (startDeg + frac * sweep) * Math.PI / 180;
+      const lit = frac <= speed / 90;
+      const major = i % 5 === 0;
+      out.push({
+        x1: (cx + Math.cos(a) * rIn).toFixed(1), y1: (cy + Math.sin(a) * rIn).toFixed(1),
+        x2: (cx + Math.cos(a) * rOut).toFixed(1), y2: (cy + Math.sin(a) * rOut).toFixed(1),
+        c: lit ? '#FFB454' : 'rgba(244,162,58,.15)', w: major ? 4 : 2.4
+      });
+    }
+    return out;
+  }
+
+  renderVals() {
+    if (!this._geo) this._geo = this.buildGeo();
+    const s = this.state;
+    const cards = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    const card = cards[Math.round(s.hdg / 45) % 8];
+    const d = new Date();
+    const hh = d.getHours();
+    const time = ((hh % 12) || 12) + ':' + String(d.getMinutes()).padStart(2, '0');
+    const fmt = v => (v >= 0 ? '+' : '\u2212') + Math.abs(v).toFixed(2);
+    const comb = Math.sqrt(s.latG * s.latG + s.longG * s.longG);
+    // strip for frame A
+    const strip = [
+      { k: 'TRIP', v: '128.6 mi' }, { k: 'MOVING', v: '3:24:10' },
+      { k: 'AVG SPD', v: '38 mph' }, { k: 'LAT G', v: fmt(s.latG) },
+      { k: 'LONG G', v: fmt(s.longG) }
+    ];
+    return {
+      ...this._geo,
+      speedoTicks: this.speedoTicks(s.speed),
+      speed: s.speed,
+      hdg: s.hdg + '\u00B0',
+      card,
+      time,
+      ampm: hh >= 12 ? 'PM' : 'AM',
+      pitch: (s.pitch >= 0 ? '+' : '\u2212') + Math.abs(s.pitch),
+      roll: (s.roll >= 0 ? '+' : '\u2212') + Math.abs(s.roll),
+      latG: fmt(s.latG),
+      longG: fmt(s.longG),
+      combG: comb.toFixed(2),
+      strip
+    };
+  }
+}
+</script>
+</body>
+</html>

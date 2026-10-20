@@ -1,0 +1,39 @@
+{
+  "name": "tacoma-dash",
+  "version": "0.1.0",
+  "main": "index.ts",
+  "private": true,
+  "scripts": {
+    "start": "expo start",
+    "web": "expo start --web",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "prebuild": "expo prebuild",
+    "build:android": "expo run:android",
+    "media:enable": "rm -rf modules/media-bridge && mkdir -p modules && cp -R native/media-bridge modules/media-bridge && echo 'Tier B staged in modules/. Now: npx expo prebuild --clean && npx expo run:android'",
+    "media:disable": "rm -rf modules/media-bridge && echo 'Tier B module removed from modules/.'",
+    "verify": "node --experimental-strip-types scripts/verify.ts"
+  },
+  "dependencies": {
+    "@expo-google-fonts/jetbrains-mono": "^0.4.1",
+    "@expo-google-fonts/oxanium": "^0.4.2",
+    "@expo/metro-runtime": "~56.0.15",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "expo": "~56.0.12",
+    "expo-dev-client": "~56.0.20",
+    "expo-intent-launcher": "~56.0.4",
+    "expo-location": "~56.0.18",
+    "expo-sensors": "~56.0.6",
+    "expo-status-bar": "~56.0.4",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.85.3",
+    "react-native-bluetooth-classic": "^1.73.0-rc.17",
+    "react-native-svg": "15.15.4",
+    "react-native-web": "~0.21.0"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.2",
+    "typescript": "~6.0.3"
+  }
+}

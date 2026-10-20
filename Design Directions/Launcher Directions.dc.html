@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Oxanium:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=Chakra+Petch:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<meta name="design_doc_mode" content="canvas">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  @keyframes ridgeBreathe{0%{transform:scaleY(.975)}100%{transform:scaleY(1.045)}}
+  @keyframes cometMove{to{stroke-dashoffset:-1040}}
+  @keyframes terrainScroll{0%{transform:translateY(0)}100%{transform:translateY(22px)}}
+  @keyframes hudSweep{to{transform:rotate(360deg)}}
+  @keyframes blink{0%,100%{opacity:.22}50%{opacity:1}}
+  @keyframes barPulse{0%,100%{transform:scaleY(.78)}50%{transform:scaleY(1)}}
+  .scan{position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(255,255,255,.035) 0 1px,transparent 1px 3px);mix-blend-mode:overlay;opacity:.55}
+</style>
+</helmet>
+
+<!-- ============ FRAME A · RIDGELINE (monochrome) ============ -->
+<div style="position:absolute;left:0;top:0;width:2000px">
+  <div data-drags-parent="1" style="font-family:'JetBrains Mono',monospace;font-weight:600;font-size:22px;letter-spacing:.32em;text-transform:uppercase;color:#8a8a85;padding:10px 6px 16px">01 — Ridgeline · monochrome</div>
+  <div data-screen-label="Ridgeline" style="position:relative;width:2000px;height:1200px;background:#0a0a0b;border-radius:8px;box-shadow:0 36px 90px rgba(0,0,0,.55);overflow:hidden;font-family:Archivo,sans-serif;color:#ECECE6">
+    <!-- header -->
+    <div style="position:absolute;top:0;left:0;right:0;height:96px;padding:0 48px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(236,236,230,.10)">
+      <div style="display:flex;align-items:baseline;gap:18px;font-family:'JetBrains Mono',monospace;font-size:18px;letter-spacing:.22em;color:#6f6f6a">TACOMA · SR<span style="color:#3c3c3a">/</span>2TR-FE</div>
+      <div style="display:flex;align-items:center;gap:34px;font-family:'JetBrains Mono',monospace;font-size:19px;letter-spacing:.14em;color:#a9a9a3">
+        <span>{{ time }} <span style="color:#5d5d58">{{ ampm }}</span></span>
+        <span style="color:#5d5d58">LTE</span><span style="color:#5d5d58">WI-FI</span>
+        <span style="color:#ECECE6">14.2<span style="color:#5d5d58;font-size:14px">V</span></span>
+      </div>
+    </div>
+    <!-- signature + speed -->
+    <div style="position:absolute;left:48px;top:120px;width:1180px;height:760px">
+      <svg viewBox="0 0 1180 560" preserveAspectRatio="xMidYMax meet" style="position:absolute;left:0;bottom:0;width:100%;height:560px">
+        <g style="transform-origin:50% 100%;animation:ridgeBreathe 7s ease-in-out infinite alternate">
+          <sc-for list="{{ ridge }}" as="ln" hint-placeholder-count="26">
+            <polygon points="{{ ln.fillPts }}" style="fill:#0a0a0b;stroke:#ECECE6;stroke-width:1.5;opacity:{{ ln.op }}"></polygon>
+          </sc-for>
+        </g>
+      </svg>
+      <div style="position:absolute;left:0;top:6px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:18px;letter-spacing:.34em;color:#6f6f6a">GROUND SPEED · GPS</div>
+        <div style="display:flex;align-items:flex-start;gap:14px">
+          <div style="font-size:300px;line-height:.82;font-weight:700;letter-spacing:-.04em;font-variant-numeric:tabular-nums">{{ speed }}</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:24px;letter-spacing:.2em;color:#8a8a85;margin-top:24px">MPH</div>
+        </div>
+      </div>
+    </div>
+    <!-- right column -->
+    <div style="position:absolute;left:1268px;top:120px;width:684px;display:flex;flex-direction:column;gap:24px">
+      <!-- media -->
+      <div style="border:1px solid rgba(236,236,230,.12);border-radius:6px;padding:24px;background:rgba(255,255,255,.012)">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:14px;letter-spacing:.28em;color:#6f6f6a;margin-bottom:16px">NOW PLAYING · BLUETOOTH A2DP</div>
+        <div style="display:flex;gap:18px;align-items:center">
+          <div style="width:104px;height:104px;border:1px solid rgba(236,236,230,.18);background:repeating-linear-gradient(45deg,rgba(236,236,230,.07) 0 7px,transparent 7px 14px);display:flex;align-items:flex-end;padding:7px"><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#6f6f6a">ALBUM ART</span></div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:26px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Disorder</div>
+            <div style="font-size:17px;color:#8a8a85;margin-top:2px">Joy Division</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:14px;margin-top:20px">
+          <div style="flex:1;height:64px;border:1px solid rgba(236,236,230,.14);border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:22px;color:#a9a9a3">‹‹</div>
+          <div style="flex:1.6;height:64px;border:1px solid rgba(236,236,230,.55);border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:20px">▶</div>
+          <div style="flex:1;height:64px;border:1px solid rgba(236,236,230,.14);border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:22px;color:#a9a9a3">››</div>
+        </div>
+      </div>
+      <!-- compass -->
+      <div style="border:1px solid rgba(236,236,230,.12);border-radius:6px;padding:24px;display:flex;align-items:center;gap:24px;background:rgba(255,255,255,.012)">
+        <svg viewBox="0 0 120 120" style="width:118px;height:118px;flex:none">
+          <circle cx="60" cy="60" r="54" fill="none" stroke="rgba(236,236,230,.16)" stroke-width="1.5"></circle>
+          <line x1="60" y1="10" x2="60" y2="24" stroke="#ECECE6" stroke-width="2.5"></line>
+          <circle cx="60" cy="60" r="3" fill="#ECECE6"></circle>
+        </svg>
+        <div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:14px;letter-spacing:.28em;color:#6f6f6a">HEADING</div>
+          <div style="font-size:54px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums">{{ hdg }}<span style="font-size:30px;color:#8a8a85;margin-left:8px">{{ card }}</span></div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:14px;color:#5d5d58;margin-top:8px">NAV IDLE · TAP TO ROUTE</div>
+        </div>
+      </div>
+      <!-- vehicle status -->
+      <div style="border:1px solid rgba(236,236,230,.12);border-radius:6px;padding:24px;background:rgba(255,255,255,.012)">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:14px;letter-spacing:.28em;color:#6f6f6a;margin-bottom:16px">VEHICLE</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px 20px">
+          <div><div style="font-size:38px;font-weight:700;font-variant-numeric:tabular-nums">14.2<span style="font-size:18px;color:#8a8a85">V</span></div><div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.18em;color:#6f6f6a">SYSTEM · LIVE</div></div>
+          <div><div style="font-size:38px;font-weight:700;color:#3c3c3a">—</div><div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.18em;color:#5d5d58">COOLANT · AWAIT OBD</div></div>
+          <div><div style="font-size:38px;font-weight:700;color:#3c3c3a">—</div><div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.18em;color:#5d5d58">FUEL · AWAIT OBD</div></div>
+          <div><div style="font-size:38px;font-weight:700;color:#3c3c3a">—</div><div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.18em;color:#5d5d58">RPM · AWAIT OBD</div></div>
+        </div>
+      </div>
+    </div>
+    <!-- dock -->
+    <div style="position:absolute;left:48px;bottom:50px;width:1904px;height:132px;display:flex;gap:24px">
+      <div style="flex:1.35;border:1px solid rgba(236,236,230,.55);border-radius:6px;display:flex;flex-direction:column;justify-content:center;padding:0 26px;background:rgba(236,236,230,.06)"><div style="font-size:26px;font-weight:700">CarPlay</div><div style="font-family:'JetBrains Mono',monospace;font-size:13px;letter-spacing:.2em;color:#8a8a85">WIRELESS · LAUNCH</div></div>
+      <div style="flex:1;border:1px solid rgba(236,236,230,.12);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:17px;letter-spacing:.22em;color:#cfcfc9">MAPS</div>
+      <div style="flex:1;border:1px solid rgba(236,236,230,.12);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:17px;letter-spacing:.22em;color:#cfcfc9">WAZE</div>
+      <div style="flex:1;border:1px solid rgba(236,236,230,.12);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:17px;letter-spacing:.22em;color:#cfcfc9">SPOTIFY</div>
+      <div style="flex:1;border:1px solid rgba(236,236,230,.12);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:17px;letter-spacing:.22em;color:#cfcfc9">CAMERA</div>
+      <div style="flex:.8;border:1px solid rgba(236,236,230,.12);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:17px;letter-spacing:.22em;color:#cfcfc9">SET</div>
+    </div>
+    <div class="scan"></div>
+  </div>
+</div>
+
+<!-- ============ FRAME B · PULSE (amber) ============ -->
+<div style="position:absolute;left:2160px;top:0;width:2000px">
+  <div data-drags-parent="1" style="font-family:'JetBrains Mono',monospace;font-weight:600;font-size:22px;letter-spacing:.32em;text-transform:uppercase;color:#8a8a85;padding:10px 6px 16px">02 — Pulse · amber LCD</div>
+  <div data-screen-label="Pulse" style="position:relative;width:2000px;height:1200px;background:#0c0a07;border-radius:8px;box-shadow:0 36px 90px rgba(0,0,0,.55);overflow:hidden;font-family:Oxanium,sans-serif;color:#F4E6CF">
+    <div style="position:absolute;top:0;left:0;right:0;height:96px;padding:0 48px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(244,162,58,.18)">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:18px;letter-spacing:.22em;color:#9a7f54">TACOMA · SR<span style="color:#5a4a30">/</span>2TR-FE</div>
+      <div style="display:flex;align-items:center;gap:34px;font-family:'JetBrains Mono',monospace;font-size:19px;letter-spacing:.14em;color:#c9a96f">
+        <span style="color:#F4A23A">{{ time }} <span style="color:#9a7f54">{{ ampm }}</span></span>
+        <span style="color:#9a7f54">LTE</span><span style="color:#9a7f54">WI-FI</span>
+        <span style="color:#F4A23A">14.2<span style="color:#9a7f54;font-size:14px">V</span></span>
+      </div>
+    </div>
+    <div style="position:absolute;left:48px;top:120px;width:1180px;height:760px">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:18px;letter-spacing:.34em;color:#9a7f54">GROUND SPEED · GPS</div>
+      <div style="display:flex;align-items:flex-start;gap:14px">
+        <div style="font-size:310px;line-height:.8;font-weight:700;letter-spacing:-.03em;font-variant-numeric:tabular-nums;color:#F4A23A;text-shadow:0 0 38px rgba(244,162,58,.4)">{{ speed }}</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:24px;letter-spacing:.2em;color:#c9a96f;margin-top:28px">MPH</div>
+      </div>
+      <div style="position:relative;margin-top:18px;height:300px;border:1px solid rgba(244,162,58,.22);border-radius:6px;background:linear-gradient(180deg,rgba(244,162,58,.04),rgba(244,162,58,0))">
+        <div style="position:absolute;top:14px;left:18px;font-family:'JetBrains Mono',monospace;font-size:13px;letter-spacing:.26em;color:#9a7f54">DRIVE PULSE · SPEED × LONGITUDINAL G</div>
+        <svg viewBox="0 0 1180 280" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">
+          <path d="{{ pulseD }}" fill="none" stroke="rgba(244,162,58,.22)" stroke-width="2"></path>
+          <path d="{{ pulseD }}" fill="none" stroke="#FFB454" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="130 900" style="filter:drop-shadow(0 0 8px rgba(255,180,84,.8));animation:cometMove 2s linear infinite"></path>
+        </svg>
+      </div>
+    </div>
+    <div style="position:absolute;left:1268px;top:120px;width:684px;display:flex;flex-direction:column;gap:24px">
+      <div style="border:1px solid rgba(244,162,58,.2);border-radius:6px;padding:24px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:14px;letter-spacing:.28em;color:#9a7f54;margin-bottom:16px">NOW PLAYING · BLUETOOTH A2DP</div>
+        <div style="display:flex;gap:18px;align-items:center">
+          <div style="width:104px;height:104px;border:1px solid rgba(244,162,58,.28);background:repeating-linear-gradient(45deg,rgba(244,162,58,.1) 0 7px,transparent 7px 14px);display:flex;align-items:flex-end;padding:7px"><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#9a7f54">ALBUM ART</span></div>
+          <div style="flex:1;min-width:0"><div style="font-size:26px;font-weight:600;color:#F4E6CF;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Midnight City</div><div style="font-size:17px;color:#c9a96f;margin-top:2px">M83</div></div>
+        </div>
+        <div style="display:flex;gap:14px;margin-top:20px;align-items:flex-end;height:30px">
+          <sc-for list="{{ eqBars }}" as="h" hint-placeholder-count="16"><div style="flex:1;height:{{ h }}%;background:#F4A23A;opacity:.7;transform-origin:bottom;animation:barPulse 1.2s ease-in-out infinite"></div></sc-for>
+        </div>
+        <div style="display:flex;gap:14px;margin-top:18px">
+          <div style="flex:1;height:62px;border:1px solid rgba(244,162,58,.22);border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:22px;color:#c9a96f">‹‹</div>
+          <div style="flex:1.6;height:62px;border:1px solid #F4A23A;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#F4A23A">▶</div>
+          <div style="flex:1;height:62px;border:1px solid rgba(244,162,58,.22);border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:22px;color:#c9a96f">››</div>
+        </div>
+      </div>
+      <div style="border:1px solid rgba(244,162,58,.2);border-radius:6px;padding:24px;display:flex;align-items:center;gap:24px">
+        <svg viewBox="0 0 120 120" style="width:118px;height:118px;flex:none">
+          <circle cx="60" cy="60" r="54" fill="none" stroke="rgba(244,162,58,.22)" stroke-width="1.5"></circle>
+          <line x1="60" y1="10" x2="60" y2="24" stroke="#F4A23A" stroke-width="2.5"></line>
+          <circle cx="60" cy="60" r="3" fill="#F4A23A"></circle>
+        </svg>
+        <div><div style="font-family:'JetBrains Mono',monospace;font-size:14px;letter-spacing:.28em;color:#9a7f54">HEADING</div><div style="font-size:54px;font-weight:700;line-height:1;color:#F4E6CF;font-variant-numeric:tabular-nums">{{ hdg }}<span style="font-size:30px;color:#c9a96f;margin-left:8px">{{ card }}</span></div><div style="font-family:'JetBrains Mono',monospace;font-size:14px;color:#7a6240;margin-top:8px">NAV IDLE · TAP TO ROUTE</div></div>
+      </div>
+      <div style="border:1px solid rgba(244,162,58,.2);border-radius:6px;padding:24px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:14px;letter-spacing:.28em;color:#9a7f54;margin-bottom:16px">VEHICLE</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px 20px">
+          <div><div style="font-size:38px;font-weight:700;color:#F4A23A;font-variant-numeric:tabular-nums">14.2<span style="font-size:18px;color:#c9a96f">V</span></div><div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.18em;color:#9a7f54">SYSTEM · LIVE</div></div>
+          <div><div style="font-size:38px;font-weight:700;color:#5a4a30">—</div><div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.18em;color:#7a6240">COOLANT · AWAIT OBD</div></div>
+          <div><div style="font-size:38px;font-weight:700;color:#5a4a30">—</div><div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.18em;color:#7a6240">FUEL · AWAIT OBD</div></div>
+          <div><div style="font-size:38px;font-weight:700;color:#5a4a30">—</div><div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.18em;color:#7a6240">RPM · AWAIT OBD</div></div>
+        </div>
+      </div>
+    </div>
+    <div style="position:absolute;left:48px;bottom:50px;width:1904px;height:132px;display:flex;gap:24px">
+      <div style="flex:1.35;border:1px solid #F4A23A;border-radius:6px;display:flex;flex-direction:column;justify-content:center;padding:0 26px;background:rgba(244,162,58,.1)"><div style="font-size:26px;font-weight:700;color:#F4A23A">CarPlay</div><div style="font-family:'JetBrains Mono',monospace;font-size:13px;letter-spacing:.2em;color:#c9a96f">WIRELESS · LAUNCH</div></div>
+      <div style="flex:1;border:1px solid rgba(244,162,58,.2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:17px;letter-spacing:.22em;color:#d9bd8c">MAPS</div>
+      <div style="flex:1;border:1px solid rgba(244,162,58,.2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:17px;letter-spacing:.22em;color:#d9bd8c">WAZE</div>
+      <div style="flex:1;border:1px solid rgba(244,162,58,.2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:17px;letter-spacing:.22em;color:#d9bd8c">SPOTIFY</div>
+      <div style="flex:1;border:1px solid rgba(244,162,58,.2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:17px;letter-spacing:.22em;color:#d9bd8c">CAMERA</div>
+      <div style="flex:.8;border:1px solid rgba(244,162,58,.2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:17px;letter-spacing:.22em;color:#d9bd8c">SET</div>
+    </div>
+    <div class="scan"></div>
+  </div>
+</div>
+
+<!-- ============ FRAME C · TERRAIN (orange/teal) ============ -->
+<div style="position:absolute;left:0;top:1380px;width:2000px">
+  <div data-drags-parent="1" style="font-family:'JetBrains Mono',monospace;font-weight:600;font-size:22px;letter-spacing:.32em;text-transform:uppercase;color:#8a8a85;padding:10px 6px 16px">03 — Terrain · wireframe duotone</div>
+  <div data-screen-label="Terrain" style="position:relative;width:2000px;height:1200px;background:#100b0c;border-radius:8px;box-shadow:0 36px 90px rgba(0,0,0,.55);overflow:hidden;font-family:'Space Grotesk',sans-serif;color:#F0E5DE">
+    <div style="position:absolute;top:0;left:0;right:0;height:96px;padding:0 48px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(56,224,192,.16)">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:18px;letter-spacing:.22em;color:#7d8a86">TACOMA · SR<span style="color:#46524f">/</span>2TR-FE</div>
+      <div style="display:flex;align-items:center;gap:34px;font-family:'JetBrains Mono',monospace;font-size:19px;letter-spacing:.14em;color:#9fb3ad">
+        <span style="color:#38E0C0">{{ time }} <span style="color:#7d8a86">{{ ampm }}</span></span>
+        <span style="color:#7d8a86">LTE</span><span style="color:#7d8a86">WI-FI</span>
+        <span style="color:#38E0C0">14.2<span style="color:#7d8a86;font-size:14px">V</span></span>
+      </div>
+    </div>
+    <div style="position:absolute;left:48px;top:120px;width:1180px;height:760px">
+      <svg viewBox="0 0 1180 560" preserveAspectRatio="xMidYMax meet" style="position:absolute;left:0;bottom:0;width:100%;height:600px">
+        <g style="animation:terrainScroll 5s ease-in-out infinite alternate">
+          <sc-for list="{{ terrainH }}" as="l" hint-placeholder-count="9"><line x1="{{ l.x1 }}" y1="{{ l.y1 }}" x2="{{ l.x2 }}" y2="{{ l.y2 }}" stroke="rgba(56,224,192,.28)" stroke-width="1.4"></line></sc-for>
+        </g>
+        <sc-for list="{{ terrainV }}" as="l" hint-placeholder-count="13"><line x1="{{ l.x1 }}" y1="{{ l.y1 }}" x2="{{ l.x2 }}" y2="{{ l.y2 }}" stroke="rgba(56,224,192,.18)" stroke-width="1.2"></line></sc-for>
+        <polygon points="{{ terrainFill }}" fill="rgba(255,106,61,.08)"></polygon>
+        <polyline points="{{ terrainRidge }}" fill="none" stroke="#FF6A3D" stroke-width="3" style="filter:drop-shadow(0 0 9px rgba(255,106,61,.7))"></polyline>
+      </svg>
+      <div style="position:absolute;left:0;top:6px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:18px;letter-spacing:.34em;color:#7d8a86">GROUND SPEED · GPS</div>
+        <div style="display:flex;align-items:flex-start;gap:14px">
+          <div style="font-size:300px;line-height:.82;font-weight:700;letter-spacing:-.04em;font-variant-numeric:tabular-nums;color:#FF6A3D;text-shadow:0 0 34px rgba(255,106,61,.35)">{{ speed }}</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:24px;letter-spacing:.2em;color:#9fb3ad;margin-top:24px">MPH</div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:14px;letter-spacing:.2em;color:#7d8a86;margin-top:6px">TERRAIN RESPONDS TO SPEED · LOAD · INCLINE</div>
+      </div>
+    </div>
+    <div style="position:absolute;left:1268px;top:120px;width:684px;display:flex;flex-direction:column;gap:24px">
+      <div style="border:1px solid rgba(56,224,192,.18);border-radius:6px;padding:24px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:14px;letter-spacing:.28em;color:#7d8a86;margin-bottom:16px">NOW PLAYING · BLUETOOTH A2DP</div>
+        <div style="display:flex;gap:18px;align-items:center">
+          <div style="width:104px;height:104px;border:1px solid rgba(255,106,61,.3);background:repeating-linear-gradient(45deg,rgba(255,106,61,.1) 0 7px,transparent 7px 14px);display:flex;align-items:flex-end;padding:7px"><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#9fb3ad">ALBUM ART</span></div>
+          <div style="flex:1;min-width:0"><div style="font-size:26px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Nightcall</div><div style="font-size:17px;color:#9fb3ad;margin-top:2px">Kavinsky</div></div>
+        </div>
+        <div style="display:flex;gap:14px;margin-top:20px">
+          <div style="flex:1;height:62px;border:1px solid rgba(56,224,192,.2);border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:22px;color:#9fb3ad">‹‹</div>
+          <div style="flex:1.6;height:62px;border:1px solid #38E0C0;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#38E0C0">▶</div>
+          <div style="flex:1;height:62px;border:1px solid rgba(56,224,192,.2);border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:22px;color:#9fb3ad">››</div>
+        </div>
+      </div>
+      <div style="border:1px solid rgba(56,224,192,.18);border-radius:6px;padding:24px;display:flex;align-items:center;gap:24px">
+        <svg viewBox="0 0 120 120" style="width:118px;height:118px;flex:none">
+          <circle cx="60" cy="60" r="54" fill="none" stroke="rgba(56,224,192,.24)" stroke-width="1.5"></circle>
+          <line x1="60" y1="10" x2="60" y2="24" stroke="#FF6A3D" stroke-width="2.5"></line>
+          <circle cx="60" cy="60" r="3" fill="#38E0C0"></circle>
+        </svg>
+        <div><div style="font-family:'JetBrains Mono',monospace;font-size:14px;letter-spacing:.28em;color:#7d8a86">HEADING</div><div style="font-size:54px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums">{{ hdg }}<span style="font-size:30px;color:#9fb3ad;margin-left:8px">{{ card }}</span></div><div style="font-family:'JetBrains Mono',monospace;font-size:14px;color:#5d6663;margin-top:8px">NAV IDLE · TAP TO ROUTE</div></div>
+      </div>
+      <div style="border:1px solid rgba(56,224,192,.18);border-radius:6px;padding:24px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:14px;letter-spacing:.28em;color:#7d8a86;margin-bottom:16px">VEHICLE</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px 20px">
+          <div><div style="font-size:38px;font-weight:700;color:#38E0C0;font-variant-numeric:tabular-nums">14.2<span style="font-size:18px;color:#9fb3ad">V</span></div><div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.18em;color:#7d8a86">SYSTEM · LIVE</div></div>
+          <div><div style="font-size:38px;font-weight:700;color:#46524f">—</div><div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.18em;color:#5d6663">COOLANT · AWAIT OBD</div></div>
+          <div><div style="font-size:38px;font-weight:700;color:#46524f">—</div><div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.18em;color:#5d6663">FUEL · AWAIT OBD</div></div>
+          <div><div style="font-size:38px;font-weight:700;color:#46524f">—</div><div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.18em;color:#5d6663">RPM · AWAIT OBD</div></div>
+        </div>
+      </div>
+    </div>
+    <div style="position:absolute;left:48px;bottom:50px;width:1904px;height:132px;display:flex;gap:24px">
+      <div style="flex:1.35;border:1px solid #FF6A3D;border-radius:6px;display:flex;flex-direction:column;justify-content:center;padding:0 26px;background:rgba(255,106,61,.1)"><div style="font-size:26px;font-weight:700;color:#FF6A3D">CarPlay</div><div style="font-family:'JetBrains Mono',monospace;font-size:13px;letter-spacing:.2em;color:#9fb3ad">WIRELESS · LAUNCH</div></div>
+      <div style="flex:1;border:1px solid rgba(56,224,192,.2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:17px;letter-spacing:.22em;color:#bcd1cb">MAPS</div>
+      <div style="flex:1;border:1px solid rgba(56,224,192,.2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:17px;letter-spacing:.22em;color:#bcd1cb">WAZE</div>
+      <div style="flex:1;border:1px solid rgba(56,224,192,.2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:17px;letter-spacing:.22em;color:#bcd1cb">SPOTIFY</div>
+      <div style="flex:1;border:1px solid rgba(56,224,192,.2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:17px;letter-spacing:.22em;color:#bcd1cb">CAMERA</div>
+      <div style="flex:.8;border:1px solid rgba(56,224,192,.2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:17px;letter-spacing:.22em;color:#bcd1cb">SET</div>
+    </div>
+    <div class="scan"></div>
+  </div>
+</div>
+
+<!-- ============ FRAME D · HUD (red) ============ -->
+<div style="position:absolute;left:2160px;top:1380px;width:2000px">
+  <div data-drags-parent="1" style="font-family:'JetBrains Mono',monospace;font-weight:600;font-size:22px;letter-spacing:.32em;text-transform:uppercase;color:#8a8a85;padding:10px 6px 16px">04 — Scope · brutalist HUD</div>
+  <div data-screen-label="Scope" style="position:relative;width:2000px;height:1200px;background:#0a0809;border-radius:8px;box-shadow:0 36px 90px rgba(0,0,0,.55);overflow:hidden;font-family:'Chakra Petch',sans-serif;color:#E8DED9">
+    <div style="position:absolute;top:0;left:0;right:0;height:96px;padding:0 48px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(242,64,58,.2)">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:18px;letter-spacing:.22em;color:#8a6f6c">TACOMA · SR<span style="color:#4f3d3b">/</span>2TR-FE</div>
+      <div style="display:flex;align-items:center;gap:34px;font-family:'JetBrains Mono',monospace;font-size:19px;letter-spacing:.14em;color:#b89a96">
+        <span style="color:#F2403A">{{ time }} <span style="color:#8a6f6c">{{ ampm }}</span></span>
+        <span style="color:#8a6f6c">LTE</span><span style="color:#8a6f6c">WI-FI</span>
+        <span style="color:#F2403A">14.2<span style="color:#8a6f6c;font-size:14px">V</span></span>
+      </div>
+    </div>
+    <!-- left: speed + waveform -->
+    <div style="position:absolute;left:48px;top:120px;width:760px;height:760px">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:18px;letter-spacing:.34em;color:#8a6f6c">GROUND SPEED · GPS</div>
+      <div style="display:flex;align-items:flex-start;gap:14px">
+        <div style="font-size:300px;line-height:.82;font-weight:700;letter-spacing:-.03em;font-variant-numeric:tabular-nums;color:#F2403A;text-shadow:0 0 34px rgba(242,64,58,.4)">{{ speed }}</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:24px;letter-spacing:.2em;color:#b89a96;margin-top:24px">MPH</div>
+      </div>
+      <div style="margin-top:24px;border:1px solid rgba(242,64,58,.24);border-radius:4px;padding:18px;position:relative">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:13px;letter-spacing:.26em;color:#8a6f6c;margin-bottom:10px">LATERAL G · WAVEFORM</div>
+        <svg viewBox="0 0 600 80" preserveAspectRatio="none" style="width:100%;height:90px">
+          <line x1="0" y1="40" x2="600" y2="40" stroke="rgba(242,64,58,.18)" stroke-width="1"></line>
+          <path d="{{ scopeWave }}" fill="none" stroke="#F2403A" stroke-width="2.5" style="filter:drop-shadow(0 0 6px rgba(242,64,58,.6))"></path>
+        </svg>
+      </div>
+      <div style="margin-top:22px;display:grid;grid-template-columns:1fr 1fr;gap:14px;font-family:'JetBrains Mono',monospace">
+        <div style="border:1px solid rgba(242,64,58,.2);border-radius:4px;padding:14px 16px"><div style="font-size:12px;letter-spacing:.2em;color:#8a6f6c">PITCH / ROLL</div><div style="font-size:30px;font-weight:600;color:#E8DED9;margin-top:4px">+3° <span style="color:#8a6f6c">/</span> −1°</div></div>
+        <div style="border:1px solid rgba(242,64,58,.2);border-radius:4px;padding:14px 16px"><div style="font-size:12px;letter-spacing:.2em;color:#8a6f6c">ALTITUDE</div><div style="font-size:30px;font-weight:600;color:#E8DED9;margin-top:4px">1,284 ft</div></div>
+      </div>
+    </div>
+    <!-- center: scope -->
+    <div style="position:absolute;left:840px;top:150px;width:520px;height:520px">
+      <svg viewBox="0 0 600 600" style="width:100%;height:100%">
+        <rect x="60" y="60" width="480" height="480" fill="none" stroke="rgba(242,64,58,.28)" stroke-width="1.6"></rect>
+        <line x1="300" y1="60" x2="300" y2="540" stroke="rgba(242,64,58,.18)" stroke-width="1"></line>
+        <line x1="60" y1="300" x2="540" y2="300" stroke="rgba(242,64,58,.18)" stroke-width="1"></line>
+        <sc-for list="{{ hudCircles }}" as="r" hint-placeholder-count="3"><circle cx="300" cy="300" r="{{ r }}" fill="none" stroke="rgba(242,64,58,.45)" stroke-width="1.4"></circle></sc-for>
+        <sc-for list="{{ hudTicks }}" as="t" hint-placeholder-count="48"><line x1="{{ t.x1 }}" y1="{{ t.y1 }}" x2="{{ t.x2 }}" y2="{{ t.y2 }}" stroke="#F2403A" stroke-width="{{ t.w }}" opacity=".7"></line></sc-for>
+        <g style="transform-origin:300px 300px;animation:hudSweep 4s linear infinite">
+          <line x1="300" y1="300" x2="300" y2="110" stroke="#FF6B61" stroke-width="2.5"></line>
+          <polygon points="300,300 300,110 360,130" fill="rgba(242,64,58,.14)"></polygon>
+        </g>
+        <sc-for list="{{ hudBlips }}" as="b" hint-placeholder-count="3"><circle cx="{{ b.x }}" cy="{{ b.y }}" r="5" fill="#FFB454" style="animation:blink 2s ease-in-out infinite"></circle></sc-for>
+        <circle cx="300" cy="300" r="4" fill="#F2403A"></circle>
+      </svg>
+      <div style="position:absolute;top:-4px;left:50%;transform:translateX(-50%);font-family:'JetBrains Mono',monospace;font-size:13px;letter-spacing:.3em;color:#8a6f6c">G-FORCE SCOPE</div>
+    </div>
+    <!-- right rail status -->
+    <div style="position:absolute;left:1392px;top:120px;width:560px;display:flex;flex-direction:column;gap:18px;font-family:'JetBrains Mono',monospace">
+      <div style="display:flex;justify-content:space-between;align-items:center;border:1px solid rgba(242,64,58,.22);border-radius:4px;padding:14px 18px"><span style="font-size:14px;letter-spacing:.2em;color:#8a6f6c">GPS</span><span style="font-size:16px;color:#F2403A">LOCK · 11 SV</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;border:1px solid rgba(242,64,58,.22);border-radius:4px;padding:14px 18px"><span style="font-size:14px;letter-spacing:.2em;color:#8a6f6c">SENSORS</span><span style="font-size:16px;color:#F2403A">ONLINE</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;border:1px solid rgba(242,64,58,.22);border-radius:4px;padding:14px 18px"><span style="font-size:14px;letter-spacing:.2em;color:#8a6f6c">OBD-II</span><span style="font-size:16px;color:#8a6f6c;animation:blink 1.6s ease-in-out infinite">PAIRING…</span></div>
+      <div style="border:1px solid rgba(242,64,58,.22);border-radius:4px;padding:18px">
+        <div style="font-size:14px;letter-spacing:.2em;color:#8a6f6c;margin-bottom:14px">NOW PLAYING · A2DP</div>
+        <div style="display:flex;gap:16px;align-items:center">
+          <div style="width:84px;height:84px;border:1px solid rgba(242,64,58,.3);background:repeating-linear-gradient(45deg,rgba(242,64,58,.12) 0 7px,transparent 7px 14px)"></div>
+          <div style="flex:1;min-width:0"><div style="font-family:'Chakra Petch';font-size:22px;font-weight:600;color:#E8DED9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Bladerunner</div><div style="font-size:14px;color:#b89a96;margin-top:2px">Vangelis</div></div>
+        </div>
+        <div style="display:flex;gap:12px;margin-top:16px">
+          <div style="flex:1;height:56px;border:1px solid rgba(242,64,58,.22);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#b89a96">‹‹</div>
+          <div style="flex:1.6;height:56px;border:1px solid #F2403A;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:18px;color:#F2403A">▶</div>
+          <div style="flex:1;height:56px;border:1px solid rgba(242,64,58,.22);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#b89a96">››</div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;border:1px solid rgba(242,64,58,.22);border-radius:4px;padding:14px 18px"><span style="font-size:14px;letter-spacing:.2em;color:#8a6f6c">HEADING</span><span style="font-size:22px;color:#E8DED9">{{ hdg }} {{ card }}</span></div>
+    </div>
+    <div style="position:absolute;left:48px;bottom:50px;width:1904px;height:120px;display:flex;gap:24px">
+      <div style="flex:1.35;border:1px solid #F2403A;border-radius:4px;display:flex;flex-direction:column;justify-content:center;padding:0 26px;background:rgba(242,64,58,.1)"><div style="font-family:'Chakra Petch';font-size:26px;font-weight:700;color:#F2403A">CARPLAY</div><div style="font-family:'JetBrains Mono',monospace;font-size:13px;letter-spacing:.2em;color:#b89a96">WIRELESS · LAUNCH</div></div>
+      <div style="flex:1;border:1px solid rgba(242,64,58,.22);border-radius:4px;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:17px;letter-spacing:.22em;color:#d2b6b2">MAPS</div>
+      <div style="flex:1;border:1px solid rgba(242,64,58,.22);border-radius:4px;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:17px;letter-spacing:.22em;color:#d2b6b2">WAZE</div>
+      <div style="flex:1;border:1px solid rgba(242,64,58,.22);border-radius:4px;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:17px;letter-spacing:.22em;color:#d2b6b2">SPOTIFY</div>
+      <div style="flex:1;border:1px solid rgba(242,64,58,.22);border-radius:4px;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:17px;letter-spacing:.22em;color:#d2b6b2">CAMERA</div>
+      <div style="flex:.8;border:1px solid rgba(242,64,58,.22);border-radius:4px;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:17px;letter-spacing:.22em;color:#d2b6b2">SET</div>
+    </div>
+    <div class="scan"></div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { speed: 41, hdg: 312, tick: 0 };
+
+  componentDidMount() {
+    this._iv = setInterval(() => {
+      this.setState(s => {
+        let sp = s.speed + (Math.random() - 0.48) * 6;
+        sp = Math.max(16, Math.min(58, sp));
+        let h = (s.hdg + (Math.random() - 0.5) * 4 + 360) % 360;
+        return { speed: Math.round(sp), hdg: Math.round(h), tick: s.tick + 1 };
+      });
+    }, 1400);
+  }
+  componentWillUnmount() { clearInterval(this._iv); }
+
+  rng(seed) {
+    let a = seed;
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  buildGeo() {
+    // ---- A: Unknown Pleasures ridgeline ----
+    const r1 = this.rng(7);
+    const N = 26, W = 1180, top = 40, bot = 540, cx = 560, sigma = 230;
+    const ridge = [];
+    for (let i = 0; i < N; i++) {
+      const t = i / (N - 1);
+      const baseY = top + t * (bot - top);
+      const rowAmp = 250 * Math.exp(-Math.pow((t - 0.46) / 0.32, 2));
+      let v = 0, pts = '';
+      for (let x = 0; x <= W; x += 14) {
+        const g = Math.exp(-Math.pow((x - cx) / sigma, 2));
+        v = v * 0.6 + (r1() - 0.5);
+        const peak = rowAmp * g * (0.5 + 1.0 * Math.abs(v));
+        pts += x + ',' + (baseY - peak).toFixed(1) + ' ';
+      }
+      const fillPts = pts + W + ',' + baseY + ' 0,' + baseY;
+      const op = (0.32 + 0.68 * Math.exp(-Math.pow((t - 0.46) / 0.55, 2))).toFixed(2);
+      ridge.push({ fillPts, op });
+    }
+
+    // ---- B: oscilloscope heartbeat ----
+    const g = (x, c, w) => Math.exp(-Math.pow((x - c) / w, 2));
+    let pd = 'M0,160';
+    for (let x = 0; x <= 1180; x += 4) {
+      let y = 160;
+      y -= 14 * g(x, 470, 16);   // P
+      y += 30 * g(x, 540, 7);    // Q
+      y -= 132 * g(x, 560, 9);   // R spike
+      y += 64 * g(x, 582, 8);    // S
+      y -= 30 * g(x, 660, 30);   // T
+      y += Math.sin(x * 0.045) * 2.4;
+      pd += ' L' + x + ',' + y.toFixed(1);
+    }
+    const pulseD = pd;
+    const r2 = this.rng(31);
+    const eqBars = Array.from({ length: 34 }, () => (18 + r2() * 82).toFixed(0));
+
+    // ---- C: isometric wireframe terrain ----
+    const hY = 150, vpL = 470, vpR = 590, floorB = 540, btmL = -70, btmR = 1250;
+    const terrainH = [];
+    for (let k = 1; k <= 9; k++) {
+      const t = Math.pow(k / 9, 1.7);
+      const y = hY + t * (floorB - hY);
+      const lx = vpL + t * (btmL - vpL);
+      const rx = vpR + t * (btmR - vpR);
+      terrainH.push({ x1: lx.toFixed(1), y1: y.toFixed(1), x2: rx.toFixed(1), y2: y.toFixed(1) });
+    }
+    const terrainV = [];
+    for (let m = 0; m <= 12; m++) {
+      const f = m / 12;
+      const tx = vpL + (vpR - vpL) * f;
+      const bx = btmL + (btmR - btmL) * f;
+      terrainV.push({ x1: tx.toFixed(1), y1: hY, x2: bx.toFixed(1), y2: floorB });
+    }
+    const r3 = this.rng(11);
+    let v3 = 0, rp = [];
+    for (let x = -70; x <= 1250; x += 22) {
+      v3 = v3 * 0.55 + (r3() - 0.5);
+      const peak = 78 * Math.exp(-Math.pow((x - 560) / 300, 2)) * (0.55 + 1.2 * Math.abs(v3)) + 12;
+      rp.push([x, (322 - peak).toFixed(1)]);
+    }
+    const terrainRidge = rp.map(p => p.join(',')).join(' ');
+    const terrainFill = terrainRidge + ' 1250,540 -70,540';
+
+    // ---- D: HUD scope ----
+    const cX = 300, cY = 300;
+    const hudCircles = [70, 132, 198];
+    const hudTicks = [];
+    for (let i = 0; i < 48; i++) {
+      const a = (i / 48) * Math.PI * 2;
+      const r1t = i % 4 === 0 ? 204 : 214, r2t = 230;
+      hudTicks.push({
+        x1: (cX + Math.cos(a) * r1t).toFixed(1), y1: (cY + Math.sin(a) * r1t).toFixed(1),
+        x2: (cX + Math.cos(a) * r2t).toFixed(1), y2: (cY + Math.sin(a) * r2t).toFixed(1),
+        w: i % 4 === 0 ? 2.6 : 1.2
+      });
+    }
+    const r4 = this.rng(99);
+    const hudBlips = Array.from({ length: 3 }, () => {
+      const a = r4() * Math.PI * 2, rr = 50 + r4() * 150;
+      return { x: (cX + Math.cos(a) * rr).toFixed(1), y: (cY + Math.sin(a) * rr).toFixed(1) };
+    });
+    let sw = 'M0,40';
+    for (let x = 0; x <= 600; x += 6) {
+      const y = 40 + Math.sin(x * 0.06) * 11 * Math.exp(-Math.pow((x - 300) / 220, 2)) + Math.sin(x * 0.21) * 4;
+      sw += ' L' + x + ',' + y.toFixed(1);
+    }
+    const scopeWave = sw;
+
+    return { ridge, pulseD, eqBars, terrainH, terrainV, terrainRidge, terrainFill, hudCircles, hudTicks, hudBlips, scopeWave };
+  }
+
+  renderVals() {
+    if (!this._geo) this._geo = this.buildGeo();
+    const cards = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    const card = cards[Math.round(this.state.hdg / 45) % 8];
+    const d = new Date();
+    const hh = d.getHours(), mm = String(d.getMinutes()).padStart(2, '0');
+    const time = ((hh % 12) || 12) + ':' + mm;
+    return {
+      ...this._geo,
+      speed: this.state.speed,
+      hdg: this.state.hdg + '\u00B0',
+      card,
+      time,
+      ampm: hh >= 12 ? 'PM' : 'AM'
+    };
+  }
+}
+</script>
+</body>
+</html>
