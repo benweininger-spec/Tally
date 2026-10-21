@@ -103,6 +103,8 @@ export interface WaveformOpts {
   height: number;
   /** value mapped to +/- this fills half-height (e.g. 0.6 g) */
   range: number;
+  /** close the fill at the bottom edge instead of the zero line (terrain-style area) */
+  floor?: boolean;
 }
 
 export interface Waveform {
@@ -131,10 +133,11 @@ export function buildWaveform(o: WaveformOpts): Waveform {
   let line = `M ${f(pts[0].x)} ${f(pts[0].y)}`;
   for (let i = 1; i < pts.length; i++) line += ` L ${f(pts[i].x)} ${f(pts[i].y)}`;
   const last = pts[pts.length - 1];
+  const fillY = o.floor ? o.y + o.height : baseline;
   const fill =
-    `M ${f(pts[0].x)} ${f(baseline)} ` +
+    `M ${f(pts[0].x)} ${f(fillY)} ` +
     pts.map((p) => `L ${f(p.x)} ${f(p.y)}`).join(' ') +
-    ` L ${f(last.x)} ${f(baseline)} Z`;
+    ` L ${f(last.x)} ${f(fillY)} Z`;
   return { line, fill, baseline, head: last };
 }
 

@@ -18,13 +18,20 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { Press } from '../components/ui/Press';
 import { useTheme, useThemeMode } from '../theme/ThemeProvider';
-import { shallowEqual, useSourceControls, useTelemetry } from '../data/DataSourceProvider';
+import { shallowEqual, useDataSource, useSourceControls, useTelemetry } from '../data/DataSourceProvider';
+import { SimulatedDataSource } from '../data/SimulatedDataSource';
 import type { SignalStatus } from '../data/types';
 import type { ObdDevice } from '../data/live/obd/transport';
 import { useDock } from '../dock/DockConfig';
+import { useAppDrawer } from '../apps/AppsProvider';
 import { MAX_DOCK_TILES, type DockTile } from '../dock/defaults';
 import type { ThemeMode } from '../data/settings';
+import { Btn, Section } from './parts';
+import { QuickControls } from './QuickControls';
+import { useMotionPref } from './MotionPref';
+import { ThemePreview } from './ThemePreview';
 
 const SettingsUIContext = createContext<{ open: () => void }>({ open: () => {} });
 export const useOpenSettings = () => useContext(SettingsUIContext).open;
@@ -62,7 +69,10 @@ function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => 
   );
   const { mode, setMode, live } = useSourceControls();
   const { mode: themeMode, setMode: setThemeMode } = useThemeMode();
+  const { reduced: reducedMotion, setReduced: setReducedMotion } = useMotionPref();
+  const [preview, setPreview] = useState(false);
   const { tiles, setTiles, reset: resetDock } = useDock();
+  const { setOpen: setDrawerOpen } = useAppDrawer();
   const isWeb = Platform.OS === 'web';
 
   const updateTile = (i: number, patch: Partial<DockTile>) =>
@@ -75,8 +85,12 @@ function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => 
     setTiles(next);
   };
   const removeTile = (i: number) => setTiles(tiles.filter((_, idx) => idx !== i));
-  const addTile = () =>
-    setTiles([...tiles, { id: `tile-${Date.now()}-${tiles.length}`, label: 'APP', url: '' }]);
+  const addLinkTile = () =>
+    setTiles([...tiles, { id: `tile-${Date.now()}-${tiles.length}`, label: 'LINK', url: '' }]);
+  const pickApps = () => {
+    onClose();
+    setDrawerOpen(true);
+  };
 
   const [devices, setDevices] = useState<ObdDevice[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
@@ -86,6 +100,7 @@ function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => 
     if (!visible) {
       setNote(null);
       setBusy(null);
+      setPreview(false);
     }
   }, [visible]);
 
@@ -134,19 +149,24 @@ function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => 
         >
           <View style={styles.headerRow}>
             <Text style={[styles.title, { color: t.accent }]}>SETTINGS</Text>
-            <Pressable hitSlop={16} onPress={onClose}>
+            <Press hitSlop={16} onPress={onClose}>
               <Text style={[styles.close, { color: t.textDim }]}>CLOSE ✕</Text>
-            </Pressable>
+            </Press>
           </View>
 
           <ScrollView style={{ maxHeight: 820 }} contentContainerStyle={{ gap: 18 }}>
+            {/* system quick controls first — the thing reached for most while driving */}
+            <Section t={t} title="QUICK CONTROLS">
+              <QuickControls t={t} visible={visible} />
+            </Section>
+
             {/* source mode */}
             <Section t={t} title="DATA SOURCE">
               <View style={styles.toggleRow}>
                 {(['sim', 'live'] as const).map((m) => {
                   const active = mode === m;
                   return (
-                    <Pressable
+                    <Press
                       key={m}
                       onPress={() => setMode(m)}
                       style={[
@@ -157,7 +177,7 @@ function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => 
                       <Text style={[styles.toggleText, { color: active ? t.accent : t.textDim }]}>
                         {m === 'sim' ? 'SIMULATOR' : 'LIVE'}
                       </Text>
-                    </Pressable>
+                    </Press>
                   );
                 })}
               </View>
@@ -174,7 +194,7 @@ function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => 
                 {(['light', 'auto', 'dark'] as ThemeMode[]).map((m) => {
                   const active = themeMode === m;
                   return (
-                    <Pressable
+                    <Press
                       key={m}
                       onPress={() => setThemeMode(m)}
                       style={[
@@ -183,14 +203,47 @@ function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => 
                       ]}
                     >
                       <Text style={[styles.toggleText, { color: active ? t.accent : t.textDim }]}>{m.toUpperCase()}</Text>
-                    </Pressable>
+                    </Press>
                   );
                 })}
               </View>
               <Text style={[styles.hint, { color: t.textFaint }]}>
-                AUTO follows daylight (sunrise/sunset). LIGHT and DARK override it.
+                AUTO follows daylight (sunrise/sunset) with a slow 30 s fade. LIGHT and DARK override it.
+              </Text>
+              <View style={styles.btnRow}>
+                <Btn t={t} label={preview ? 'HIDE SPLIT PREVIEW' : 'SHOW DAY / NIGHT SPLIT'} onPress={() => setPreview((v) => !v)} />
+              </View>
+              {preview && <ThemePreview />}
+            </Section>
+
+            {/* motion: full / reduced (gates the decorative moments only) */}
+            <Section t={t} title="MOTION">
+              <View style={styles.toggleRow}>
+                {([false, true] as const).map((r) => {
+                  const active = !!reducedMotion === r;
+                  return (
+                    <Press
+                      key={String(r)}
+                      onPress={() => setReducedMotion(r)}
+                      style={[
+                        styles.toggle,
+                        { borderColor: active ? t.accent : t.panelBorder, backgroundColor: active ? t.panel : 'transparent' },
+                      ]}
+                    >
+                      <Text style={[styles.toggleText, { color: active ? t.accent : t.textDim }]}>
+                        {r ? 'REDUCED' : 'FULL'}
+                      </Text>
+                    </Press>
+                  );
+                })}
+              </View>
+              <Text style={[styles.hint, { color: t.textFaint }]}>
+                REDUCED skips the startup sweep and the OBD-connect animation. Instruments are unaffected.
               </Text>
             </Section>
+
+            {/* sim-only knobs: exercise the dusk crossfade + OBD-connect moment without hardware */}
+            {mode === 'sim' && <SimSection t={t} obdConnected={status.obdConnected} onClose={onClose} />}
 
             {/* per-tier status */}
             <Section t={t} title="CONNECTION STATUS">
@@ -209,8 +262,8 @@ function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => 
             {/* dock customization */}
             <Section t={t} title="DOCK">
               <Text style={[styles.hint, { color: t.textFaint }]}>
-                CarPlay and SET are pinned. Edit the app tiles — label + a launch link (deep-link /
-                scheme, e.g. waze://, spotify://, geo:0,0). Tap a tile on the home screen to open it.
+                CarPlay, APPS and SET are pinned. To add an app, open APPS and hold its tile. Link
+                tiles open a deep link instead (waze://, geo:0,0, …). Up to {MAX_DOCK_TILES} tiles.
               </Text>
               {tiles.map((tile, i) => (
                 <View key={tile.id} style={styles.dockRow}>
@@ -221,28 +274,36 @@ function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => 
                     placeholderTextColor={t.absent}
                     style={[styles.input, styles.labelInput, { color: t.text, borderColor: t.hairline }]}
                   />
-                  <TextInput
-                    value={tile.url}
-                    onChangeText={(v) => updateTile(i, { url: v })}
-                    placeholder="launch link (optional)"
-                    placeholderTextColor={t.absent}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    style={[styles.input, { flex: 1, color: t.textDim, borderColor: t.hairline }]}
-                  />
-                  <Pressable onPress={() => moveTile(i, -1)} style={styles.iconBtn} hitSlop={6}>
+                  {tile.package ? (
+                    <Text numberOfLines={1} style={[styles.pkg, { color: t.textFaint }]}>
+                      {tile.package}
+                      {tile.url ? `  ·  ${tile.url}` : ''}
+                    </Text>
+                  ) : (
+                    <TextInput
+                      value={tile.url ?? ''}
+                      onChangeText={(v) => updateTile(i, { url: v })}
+                      placeholder="deep link, e.g. waze://"
+                      placeholderTextColor={t.absent}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      style={[styles.input, { flex: 1, color: t.textDim, borderColor: t.hairline }]}
+                    />
+                  )}
+                  <Press onPress={() => moveTile(i, -1)} style={styles.iconBtn} hitSlop={6}>
                     <Text style={[styles.icon, { color: i === 0 ? t.absent : t.textDim }]}>▲</Text>
-                  </Pressable>
-                  <Pressable onPress={() => moveTile(i, 1)} style={styles.iconBtn} hitSlop={6}>
+                  </Press>
+                  <Press onPress={() => moveTile(i, 1)} style={styles.iconBtn} hitSlop={6}>
                     <Text style={[styles.icon, { color: i === tiles.length - 1 ? t.absent : t.textDim }]}>▼</Text>
-                  </Pressable>
-                  <Pressable onPress={() => removeTile(i)} style={styles.iconBtn} hitSlop={6}>
+                  </Press>
+                  <Press onPress={() => removeTile(i)} style={styles.iconBtn} hitSlop={6}>
                     <Text style={[styles.icon, { color: t.warn }]}>✕</Text>
-                  </Pressable>
+                  </Press>
                 </View>
               ))}
               <View style={styles.btnRow}>
-                {tiles.length < MAX_DOCK_TILES && <Btn t={t} label="+ ADD TILE" onPress={addTile} />}
+                <Btn t={t} label="PICK APPS…" onPress={pickApps} />
+                {tiles.length < MAX_DOCK_TILES && <Btn t={t} label="+ LINK TILE" onPress={addLinkTile} />}
                 <Btn t={t} label="RESET DOCK" onPress={resetDock} />
               </View>
             </Section>
@@ -293,7 +354,7 @@ function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => 
                         />
                       </View>
                       {devices.map((d) => (
-                        <Pressable
+                        <Press
                           key={d.address}
                           disabled={!!busy}
                           onPress={() => run('connect', () => live.connectObd(d.address), `✓ ${d.name}`)}
@@ -301,7 +362,7 @@ function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => 
                         >
                           <Text style={[styles.deviceName, { color: t.text }]}>{d.name || '(unnamed)'}</Text>
                           <Text style={[styles.deviceMac, { color: t.textFaint }]}>{d.address}</Text>
-                        </Pressable>
+                        </Press>
                       ))}
                       <Text style={[styles.hint, { color: t.textFaint }]}>
                         Pair the dongle once in Android Bluetooth settings first, then Connect.
@@ -338,34 +399,72 @@ function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => 
   );
 }
 
-function Section({ t, title, children }: { t: ReturnType<typeof useTheme>; title: string; children: React.ReactNode }) {
+function SimSection({
+  t,
+  obdConnected,
+  onClose,
+}: {
+  t: ReturnType<typeof useTheme>;
+  obdConnected: boolean;
+  onClose: () => void;
+}) {
+  const source = useDataSource();
+  const sim = source instanceof SimulatedDataSource ? source : null;
+  const [daylight, setDaylight] = useState<boolean | null>(sim?.getDaylightOverride() ?? null);
+  if (!sim) return null;
   return (
-    <View style={[styles.section, { borderColor: t.hairline }]}>
-      <Text style={[styles.sectionTitle, { color: t.textDim }]}>{title}</Text>
-      <View style={{ gap: 12 }}>{children}</View>
-    </View>
+    <Section t={t} title="SIMULATOR">
+      <Text style={[styles.hint, { color: t.textFaint }]}>DAYLIGHT (drives THEME → AUTO and the night-face suggestion)</Text>
+      <View style={styles.toggleRow}>
+        {([null, true, false] as const).map((v) => (
+          <Toggle
+            t={t}
+            key={String(v)}
+            label={v == null ? 'CLOCK' : v ? 'DAY' : 'NIGHT'}
+            active={daylight === v}
+            onPress={() => {
+              sim.setDaylightOverride(v);
+              setDaylight(v);
+            }}
+          />
+        ))}
+      </View>
+      <Text style={[styles.hint, { color: t.textFaint }]}>OBD DONGLE (plays the connect moment)</Text>
+      <View style={styles.toggleRow}>
+        <Toggle
+          t={t}
+          label="OBD ON"
+          active={obdConnected}
+          onPress={() => {
+            // close the sheet first so the connect moment plays where you can see it
+            onClose();
+            setTimeout(() => sim.setObdConnected(true), 450);
+          }}
+        />
+        <Toggle t={t} label="OBD OFF" active={!obdConnected} onPress={() => sim.setObdConnected(false)} />
+      </View>
+    </Section>
   );
 }
 
-function Btn({
+function Toggle({
   t,
   label,
+  active,
   onPress,
-  disabled,
 }: {
   t: ReturnType<typeof useTheme>;
   label: string;
+  active: boolean;
   onPress: () => void;
-  disabled?: boolean;
 }) {
   return (
-    <Pressable
+    <Press
       onPress={onPress}
-      disabled={disabled}
-      style={[styles.btn, { borderColor: t.accent, opacity: disabled ? 0.4 : 1 }]}
+      style={[styles.toggle, { borderColor: active ? t.accent : t.panelBorder, backgroundColor: active ? t.panel : 'transparent' }]}
     >
-      <Text style={[styles.btnText, { color: t.accent }]}>{label}</Text>
-    </Pressable>
+      <Text style={[styles.toggleText, { color: active ? t.accent : t.textDim }]}>{label}</Text>
+    </Press>
   );
 }
 
@@ -375,8 +474,6 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   title: { fontFamily: 'Oxanium', fontSize: 30, fontWeight: '800', letterSpacing: 2 },
   close: { fontFamily: 'JetBrains Mono', fontSize: 15, letterSpacing: 2 },
-  section: { borderTopWidth: 1, paddingTop: 16 },
-  sectionTitle: { fontFamily: 'JetBrains Mono', fontSize: 13, letterSpacing: 3, marginBottom: 12 },
   toggleRow: { flexDirection: 'row', gap: 16 },
   toggle: { flex: 1, borderWidth: 1, borderRadius: 6, paddingVertical: 18, alignItems: 'center' },
   toggleText: { fontFamily: 'Oxanium', fontSize: 20, fontWeight: '700', letterSpacing: 2 },
@@ -387,8 +484,6 @@ const styles = StyleSheet.create({
   statusDetail: { fontFamily: 'JetBrains Mono', fontSize: 13, flex: 1 },
   statusValue: { fontFamily: 'JetBrains Mono', fontSize: 14, letterSpacing: 1 },
   btnRow: { flexDirection: 'row', gap: 16 },
-  btn: { flex: 1, borderWidth: 1, borderRadius: 6, paddingVertical: 16, alignItems: 'center' },
-  btnText: { fontFamily: 'Oxanium', fontSize: 17, fontWeight: '700', letterSpacing: 1 },
   deviceRow: { borderWidth: 1, borderRadius: 6, padding: 14 },
   deviceName: { fontFamily: 'Oxanium', fontSize: 17, fontWeight: '600' },
   deviceMac: { fontFamily: 'JetBrains Mono', fontSize: 12, marginTop: 2 },
@@ -402,7 +497,8 @@ const styles = StyleSheet.create({
     fontFamily: 'JetBrains Mono',
     fontSize: 15,
   },
-  labelInput: { width: 130, letterSpacing: 2 },
+  labelInput: { width: 170, letterSpacing: 2 },
+  pkg: { flex: 1, fontFamily: 'JetBrains Mono', fontSize: 14, paddingHorizontal: 4 },
   iconBtn: { width: 36, height: 40, alignItems: 'center', justifyContent: 'center' },
   icon: { fontFamily: 'JetBrains Mono', fontSize: 18 },
 });

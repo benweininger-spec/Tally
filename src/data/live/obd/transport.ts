@@ -12,6 +12,8 @@ export type TransportStatus = 'disconnected' | 'connecting' | 'connected';
 
 export interface ObdTransport {
   readonly status: TransportStatus;
+  /** human name of the connected adapter (e.g. "vLinker MC"), when the link knows it */
+  readonly deviceName?: string | null;
   /** Open the link (pair/connect). Rejects on failure. */
   connect(): Promise<void>;
   /** Close the link. Always safe to call. */

@@ -1,0 +1,7 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- Special-access permission: granted by the user on the "Modify system settings"
+       screen (requestWriteSettings), never at install. Needed for brightness + timeout. -->
+  <uses-permission android:name="android.permission.WRITE_SETTINGS" />
+  <!-- WifiManager.isWifiEnabled (read-only status; toggling is blocked on API 29+) -->
+  <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+</manifest>

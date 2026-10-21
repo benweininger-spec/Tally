@@ -1,14 +1,19 @@
-import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, Platform, StyleSheet, Text, View } from 'react-native';
 import { shallowEqual, useTelemetry } from '../data/DataSourceProvider';
 import { useTheme } from '../theme/ThemeProvider';
+import { useMotionPref } from '../settings/MotionPref';
 import { has, type Signal } from '../data/types';
+import type { Theme } from '../theme/themes';
 
 interface Stat {
   value: string;
   unit?: string;
   label: string;
 }
+
+const NATIVE = Platform.OS !== 'web';
+const STAGGER_MS = 90;
 
 /** value rounded to `step` (for change-detection at display precision), or null if absent. */
 const hv = (s: Signal<number>, step = 1): number | null =>
@@ -19,9 +24,14 @@ const hv = (s: Signal<number>, step = 1): number | null =>
  * "no empty gauges"). Tier-A data (voltage, trip, avg, altitude) fills it today;
  * when the dongle connects, the richer engine metrics replace the GPS-derived
  * ones. No "— AWAIT OBD" dashes, ever.
+ *
+ * On the connect EDGE the cells stagger in (part of the OBD-connected moment):
+ * per-cell opacity on the native driver, keyed on a reveal counter that's derived
+ * during render, so the new engine cells mount already hidden — no flash.
  */
 export const VehiclePanel = React.memo(function VehiclePanel() {
   const t = useTheme();
+  const { reduced } = useMotionPref();
   const d = useTelemetry(
     (s) => ({
       connected: s.obd.connected,
@@ -35,6 +45,12 @@ export const VehiclePanel = React.memo(function VehiclePanel() {
     }),
     shallowEqual
   );
+
+  // derived state: bump `reveal` in the same render the dongle connects
+  const [edge, setEdge] = useState({ connected: d.connected, reveal: 0 });
+  if (edge.connected !== d.connected) {
+    setEdge({ connected: d.connected, reveal: d.connected && !reduced ? edge.reveal + 1 : edge.reveal });
+  }
 
   const stats: Stat[] = [];
   stats.push({ value: d.voltage == null ? '—' : d.voltage.toFixed(1), unit: 'V', label: 'SYSTEM · LIVE' });
@@ -55,13 +71,7 @@ export const VehiclePanel = React.memo(function VehiclePanel() {
       <Text style={[styles.title, { color: t.textFaint }]}>VEHICLE</Text>
       <View style={styles.grid}>
         {stats.map((s, i) => (
-          <View key={i} style={styles.cell}>
-            <Text style={[styles.value, { color: t.accent }]}>
-              {s.value}
-              {s.unit ? <Text style={{ fontSize: 18, color: t.textDim }}> {s.unit}</Text> : null}
-            </Text>
-            <Text style={[styles.label, { color: t.textFaint }]}>{s.label}</Text>
-          </View>
+          <Cell key={s.label} s={s} t={t} reveal={edge.reveal} delay={i * STAGGER_MS} />
         ))}
       </View>
       <Text style={[styles.footer, { color: connected ? t.textDim : t.textFaint }]}>
@@ -70,6 +80,29 @@ export const VehiclePanel = React.memo(function VehiclePanel() {
     </View>
   );
 });
+
+function Cell({ s, t, reveal, delay }: { s: Stat; t: Theme; reveal: number; delay: number }) {
+  // a cell born during a reveal starts hidden; an existing one re-staggers with the rest
+  const op = useRef(new Animated.Value(reveal > 0 ? 0 : 1)).current;
+  const seen = useRef(0);
+  useEffect(() => {
+    if (reveal === 0 || reveal === seen.current) return;
+    seen.current = reveal;
+    op.setValue(0);
+    const a = Animated.timing(op, { toValue: 1, duration: 280, delay: 120 + delay, useNativeDriver: NATIVE });
+    a.start(() => op.setValue(1));
+    return () => a.stop();
+  }, [reveal, delay, op]);
+  return (
+    <Animated.View style={[styles.cell, { opacity: op }]}>
+      <Text style={[styles.value, { color: t.accent }]}>
+        {s.value}
+        {s.unit ? <Text style={{ fontSize: 18, color: t.textDim }}> {s.unit}</Text> : null}
+      </Text>
+      <Text style={[styles.label, { color: t.textFaint }]}>{s.label}</Text>
+    </Animated.View>
+  );
+}
 
 const styles = StyleSheet.create({
   card: { borderWidth: 1, borderRadius: 8, padding: 24 },

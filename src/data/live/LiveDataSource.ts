@@ -19,6 +19,8 @@ import { absent, live } from '../types';
 import type { DashboardData, DataSource, History, NowPlaying, Signal } from '../types';
 import { celsiusToFahrenheit, kmhToMph } from '../../lib/units';
 import {
+  ALT_SAMPLE_MI,
+  ALT_SLOTS,
   accumFuel,
   avgMpg as deriveAvgMpg,
   estHp,
@@ -35,6 +37,7 @@ import { loadCalibration, saveCalibration } from '../settings';
 import { LocationProvider } from './locationProvider';
 import { SensorProvider } from './sensorProvider';
 import { MediaBridgeProvider } from './mediaBridge';
+import { ConnectivityProvider } from './connectivityProvider';
 import { ObdManager, type Reading } from './obd/ObdManager';
 import { ClassicSppTransport, listBondedObdDevices } from './obd/ClassicSppTransport';
 import type { ObdDevice } from './obd/transport';
@@ -50,6 +53,8 @@ export interface LiveStatus {
   gpsFix: boolean;
   sensorsOnline: boolean;
   obdConnected: boolean;
+  /** Bluetooth name of the connected OBD adapter (for the connect ticker) */
+  obdAdapterName: string | null;
   mediaAvailable: boolean;
   mediaAccess: boolean;
 }
@@ -80,11 +85,14 @@ export class LiveDataSource implements DataSource, LiveControls {
   private location = new LocationProvider();
   private sensors = new SensorProvider();
   private media = new MediaBridgeProvider();
+  private connectivity = new ConnectivityProvider();
   private obd: ObdManager | null = null;
   private obdConnecting = false;
 
   private histLongG = new Array(HISTORY_LEN).fill(0);
   private histSpeed = new Array(HISTORY_LEN).fill(0);
+  private histAlt: number[] = []; // distance-sampled, grows to ALT_SLOTS
+  private altNextAt: number | null = null; // trip distance (mi) of the next altitude sample
 
   private fuel: FuelAccum = initFuelAccum();
   private zeroSixty: ZeroSixtyState = initZeroSixty();
@@ -106,6 +114,7 @@ export class LiveDataSource implements DataSource, LiveControls {
     void this.location.start();
     void this.sensors.start();
     this.media.start();
+    this.connectivity.start();
     this.timer = setInterval(() => this.tick(), this.tickMs);
   }
 
@@ -115,6 +124,7 @@ export class LiveDataSource implements DataSource, LiveControls {
     this.location.stop();
     this.sensors.stop();
     this.media.stop();
+    this.connectivity.stop();
     this.obd?.disconnect();
   }
 
@@ -128,7 +138,7 @@ export class LiveDataSource implements DataSource, LiveControls {
   }
 
   getHistory(): History {
-    return { longG: this.histLongG, speed: this.histSpeed };
+    return { longG: this.histLongG, speed: this.histSpeed, altitude: this.histAlt };
   }
 
   // ---- frame tick ------------------------------------------------------------
@@ -166,6 +176,16 @@ export class LiveDataSource implements DataSource, LiveControls {
       if (m.available && m.hasAccess && !m.nowPlaying) void this.media.refresh();
     }
 
+    // altitude profile: one sample per ALT_SAMPLE_MI of distance (never per tick), and
+    // only from a fresh fix — a held-over altitude would draw a fake flat
+    if (loc.altitudeFt != null && loc.altitudeAt != null && Date.now() - loc.altitudeAt < 3000) {
+      if (this.altNextAt == null || loc.distanceMi >= this.altNextAt) {
+        this.histAlt.push(loc.altitudeFt);
+        if (this.histAlt.length > ALT_SLOTS) this.histAlt.shift();
+        this.altNextAt = loc.distanceMi + ALT_SAMPLE_MI;
+      }
+    }
+
     // history ring buffers (drop oldest)
     this.histLongG.push(sens.longG ?? 0);
     this.histLongG.shift();
@@ -197,6 +217,7 @@ export class LiveDataSource implements DataSource, LiveControls {
     const loc = this.location.getSnapshot();
     const sens = this.sensors.getSnapshot();
     const mediaState = this.media.getSnapshot();
+    const net = this.connectivity.getSnapshot();
     const obd = this.obd;
     const obdUp = !!obd?.connected;
 
@@ -255,8 +276,8 @@ export class LiveDataSource implements DataSource, LiveControls {
         isDaylight: hour >= 7 && hour < 19,
         gpsFix: loc.gpsFix,
         satellites: absent<number>(), // expo-location doesn't expose satellite count
-        wifi: false, // TODO(connectivity): wire expo-network/NetInfo in a later pass
-        lte: false,
+        wifi: net.wifi,
+        lte: net.lte,
         sensorsOnline: sens.online,
       },
       media: {
@@ -298,6 +319,7 @@ export class LiveDataSource implements DataSource, LiveControls {
       gpsFix: loc.gpsFix,
       sensorsOnline: this.sensors.getSnapshot().online,
       obdConnected: !!this.obd?.connected,
+      obdAdapterName: this.obd?.adapterName ?? null,
       mediaAvailable: this.media.getSnapshot().available,
       mediaAccess: this.media.hasAccess(),
     };

@@ -7,6 +7,8 @@ import { JetBrainsMono_500Medium } from '@expo-google-fonts/jetbrains-mono';
 import { DataSourceProvider } from './src/data/DataSourceProvider';
 import { ThemeProvider } from './src/theme/ThemeProvider';
 import { DockProvider } from './src/dock/DockConfig';
+import { AppsProvider } from './src/apps/AppsProvider';
+import { MotionPrefProvider } from './src/settings/MotionPref';
 import { RadioProvider } from './src/radio/RadioProvider';
 import { SettingsUIProvider } from './src/settings/SettingsUI';
 import { HomeScreen } from './src/screens/HomeScreen';
@@ -44,14 +46,18 @@ export default function App() {
   return (
     <DataSourceProvider>
       <ThemeProvider>
-        <DockProvider>
-          <RadioProvider>
-            <SettingsUIProvider>
-              <StatusBar hidden />
-              <HomeScreen />
-            </SettingsUIProvider>
-          </RadioProvider>
-        </DockProvider>
+        <MotionPrefProvider>
+          <DockProvider>
+            <AppsProvider>
+              <RadioProvider>
+                <SettingsUIProvider>
+                  <StatusBar hidden />
+                  <HomeScreen />
+                </SettingsUIProvider>
+              </RadioProvider>
+            </AppsProvider>
+          </DockProvider>
+        </MotionPrefProvider>
       </ThemeProvider>
     </DataSourceProvider>
   );

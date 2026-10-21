@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { Press } from './ui/Press';
 import { shallowEqual, useTelemetry } from '../data/DataSourceProvider';
 import { useTheme } from '../theme/ThemeProvider';
 import { has } from '../data/types';
@@ -26,7 +27,7 @@ export const MediaWidget = React.memo(function MediaWidget() {
         {(['bt', 'radio'] as MediaSource[]).map((s) => {
           const active = source === s;
           return (
-            <Pressable
+            <Press
               key={s}
               onPress={() => setSource(s)}
               style={[styles.srcTab, { borderColor: active ? t.accent : t.panelBorder, backgroundColor: active ? t.panel : 'transparent' }]}
@@ -34,7 +35,7 @@ export const MediaWidget = React.memo(function MediaWidget() {
               <Text style={[styles.srcText, { color: active ? t.accent : t.textDim }]}>
                 {s === 'bt' ? 'BLUETOOTH' : 'RADIO'}
               </Text>
-            </Pressable>
+            </Press>
           );
         })}
       </View>
@@ -93,14 +94,14 @@ function RadioTuner({ state, controls, t }: { state: RadioState; controls: Radio
           {(['FM', 'AM'] as Band[]).map((b) => {
             const active = state.band === b;
             return (
-              <Pressable
+              <Press
                 key={b}
                 onPress={() => controls.setBand(b)}
                 disabled={!live}
                 style={[styles.bandTab, { borderColor: active ? t.accent : t.panelBorder }]}
               >
                 <Text style={[styles.bandText, { color: active ? t.accent : t.textDim }]}>{b}</Text>
-              </Pressable>
+              </Press>
             );
           })}
         </View>
@@ -135,7 +136,7 @@ function RadioTuner({ state, controls, t }: { state: RadioState; controls: Radio
           </View>
           <View style={styles.presets}>
             {state.presets.map((khz) => (
-              <Pressable
+              <Press
                 key={khz}
                 onPress={() => controls.recallPreset(khz)}
                 style={[styles.preset, { borderColor: state.frequencyKhz === khz ? t.accent : t.hairline }]}
@@ -143,18 +144,18 @@ function RadioTuner({ state, controls, t }: { state: RadioState; controls: Radio
                 <Text style={[styles.presetText, { color: state.frequencyKhz === khz ? t.accent : t.textDim }]}>
                   {fmtFreq(khz, state.band)}
                 </Text>
-              </Pressable>
+              </Press>
             ))}
           </View>
-          <Pressable onPress={controls.launchFactory} hitSlop={6}>
+          <Press onPress={controls.launchFactory} hitSlop={6}>
             <Text style={[styles.launchLink, { color: t.textFaint }]}>OPEN FACTORY RADIO APP ↗</Text>
-          </Pressable>
+          </Press>
         </>
       ) : (
         <>
-          <Pressable onPress={controls.launchFactory} style={[styles.launchBtn, { borderColor: t.accent, backgroundColor: t.panel }]}>
+          <Press onPress={controls.launchFactory} style={[styles.launchBtn, { borderColor: t.accent, backgroundColor: t.panel }]}>
             <Text style={[styles.launchText, { color: t.accent }]}>LAUNCH FACTORY RADIO</Text>
-          </Pressable>
+          </Press>
           <Text style={[styles.tunerNote, { color: t.textFaint }]}>
             Live tuning runs in the unit's factory radio app (no tuner API on this hardware).
           </Text>
@@ -166,14 +167,14 @@ function RadioTuner({ state, controls, t }: { state: RadioState; controls: Radio
 
 function Btn({ label, theme, primary, onPress }: { label: string; theme: ReturnType<typeof useTheme>; primary?: boolean; onPress?: () => void }) {
   return (
-    <Pressable
+    <Press
       onPress={onPress}
       style={[styles.btn, { borderColor: primary ? theme.accent : theme.panelBorder, flex: primary ? 1.6 : 1 }]}
     >
       <Text style={{ color: primary ? theme.accent : theme.textDim, fontSize: 18, fontFamily: 'Oxanium', fontWeight: '600' }}>
         {label}
       </Text>
-    </Pressable>
+    </Press>
   );
 }
 

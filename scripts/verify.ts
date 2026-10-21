@@ -55,7 +55,32 @@ import {
   estTorqueLbFt,
   initZeroSixty,
   zeroSixtyStep,
+  gradePct,
+  ALT_SAMPLE_MI,
+  ALT_SLOTS,
 } from '../src/lib/derive.ts';
+import {
+  bootSweep,
+  connectSweep,
+  BOOT_UP_MS,
+  BOOT_LIVE_BY_MS,
+  BOOT_MS,
+  BOOT_PEAK_MPH,
+  CONNECT_MS,
+} from '../src/lib/sweep.ts';
+import {
+  amberDay,
+  amberNight,
+  amberNightDim,
+  composite,
+  contrastRatio,
+  DAY_CONTRAST_TARGETS,
+  dimTheme,
+  formatColor,
+  lerpTheme,
+  parseColor,
+  relLuminance,
+} from '../src/theme/themes.ts';
 
 let failures = 0;
 const ok = (cond: boolean, msg: string) => {
@@ -268,6 +293,96 @@ console.log('\nDERIVED METRICS (src/lib/derive.ts)');
   z = zeroSixtyStep(z, 62, 8.5); // crosses 60 between t=8 and t=8.5
   ok(z.phase === 'done', '0-60 completes when crossing 60 mph');
   ok(approx(z.result, 8.15, 1e-2), `0-60 linearly interpolates the crossing (${z.result?.toFixed(2)}s)`);
+}
+
+console.log('\nALTITUDE + GRADE (src/lib/derive.ts, src/lib/pulse.ts)');
+{
+  const run = ALT_SAMPLE_MI * 5280; // ft of road per sample (105.6)
+  const climb10 = Array.from({ length: 20 }, (_, i) => 1000 + i * run * 0.1);
+  ok(approx(gradePct(climb10), 10, 1e-6), `steady 10% climb reads +10% (${gradePct(climb10)?.toFixed(3)})`);
+  const descend6 = Array.from({ length: 20 }, (_, i) => 1000 - i * run * 0.062);
+  ok(approx(gradePct(descend6), -6.2, 1e-6), 'steady descent reads negative grade');
+  ok(approx(gradePct(new Array(30).fill(1284)), 0, 1e-9), 'flat road reads 0%');
+  ok(gradePct([1, 2, 3]) === null && gradePct([]) === null, 'too few samples (< 0.1 mi) → null');
+  // noisy GPS: least-squares should land near the true slope despite ±15 ft jitter
+  const noise = [12, -9, 15, -14, 3, 8];
+  const noisy = Array.from({ length: 6 }, (_, i) => 1000 + i * run * 0.05 + noise[i]);
+  const g = gradePct(noisy)!;
+  ok(Math.abs(g - 5) < 4, `noisy 5% climb stays in band (${g.toFixed(2)}%)`);
+
+  const terrain = buildWaveform({ samples: [-1, 0, 1], x: 0, y: 10, width: 100, height: 50, range: 1, floor: true });
+  ok(/L 100 60 Z$/.test(terrain.fill) && terrain.fill.startsWith('M 0 60'), 'floor fill closes at the bottom edge');
+
+  const sim = new SimulatedDataSource({ seed: 3 });
+  const alt0 = sim.getHistory().altitude;
+  ok(alt0.length === ALT_SLOTS, `sim pre-fills the ~5 mi profile (${alt0.length} samples)`);
+  for (let i = 0; i < 4000; i++) sim.tick();
+  const alt = sim.getHistory().altitude;
+  ok(alt.length === ALT_SLOTS && alt.every(Number.isFinite), 'sim altitude ring stays full + finite');
+  const sg = gradePct(alt);
+  ok(sg !== null && Math.abs(sg) < 25, `sim grade is plausible (${sg?.toFixed(1)}%)`);
+}
+
+console.log('\nTHEME MATH (src/theme/themes.ts)');
+{
+  ok(formatColor(parseColor('#FFB454')!) === '#ffb454', 'hex parse/format round-trips');
+  ok(formatColor(parseColor('rgba(244,162,58,0.2)')!) === 'rgba(244,162,58,0.2)', 'rgba parse/format round-trips');
+  ok(parseColor('Oxanium') === null, 'font names are not colors');
+  ok(lerpTheme(amberNight, amberDay, 0) === amberNight && lerpTheme(amberNight, amberDay, 1) === amberDay, 'lerpTheme endpoints are the themes themselves');
+  const mid = lerpTheme(amberNight, amberDay, 0.5);
+  const m = parseColor(mid.bg)!;
+  const n0 = parseColor(amberNight.bg)!;
+  const d0 = parseColor(amberDay.bg)!;
+  ok([0, 1, 2].every((i) => Math.abs(m[i] - (n0[i] + d0[i]) / 2) <= 1), `lerpTheme midpoint bg is the RGB average (${mid.bg})`);
+  ok(mid.fontDisplay === 'Oxanium' && mid.fontMono === 'JetBrains Mono', 'lerpTheme copies non-color tokens');
+  const keys = Object.keys(amberNight) as (keyof typeof amberNight)[];
+  ok(
+    keys.every((k) => (typeof mid[k] === 'number' ? Number.isFinite(mid[k]) : !/NaN/.test(String(mid[k])))),
+    'lerpTheme leaves no NaN tokens'
+  );
+  ok(Math.abs(mid.stroke - (amberNight.stroke + amberDay.stroke) / 2) < 1e-9, 'lerpTheme blends numeric tokens (ring stroke)');
+  const ratio = relLuminance(amberNightDim.accent) / relLuminance(amberNight.accent);
+  ok(Math.abs(ratio - 0.4) < 0.02, `night face dims luminance to ~40% (${(ratio * 100).toFixed(1)}%)`);
+  ok(parseColor(dimTheme(amberNight, 0.4).panel)![3] === parseColor(amberNight.panel)![3], 'dimTheme keeps alpha');
+}
+
+console.log('\nDAYLIGHT CONTRAST (amberDay, WCAG vs bg — npm run contrast for the full table)');
+{
+  for (const [k, target] of Object.entries(DAY_CONTRAST_TARGETS)) {
+    const r = contrastRatio(amberDay[k as keyof typeof DAY_CONTRAST_TARGETS], amberDay.bg);
+    ok(r >= target, `day ${k.padEnd(10)} ${r.toFixed(2)}:1 ≥ ${target}`);
+  }
+  const panel = composite(amberDay.panel, amberDay.bg);
+  ok(contrastRatio(amberDay.accent, panel) >= 7, `day accent on a panel ${contrastRatio(amberDay.accent, panel).toFixed(2)}:1 ≥ 7`);
+  ok(contrastRatio(amberDay.panelBorder, amberDay.bg) >= 3, `day tile borders ${contrastRatio(amberDay.panelBorder, amberDay.bg).toFixed(2)}:1 ≥ 3 (non-text)`);
+  ok(amberDay.stroke >= 1.2 * amberNight.stroke - 1e-9, 'day ring strokes ≥ +20%');
+  ok(amberDay.ambientMax <= 0.06, 'day ambient glow capped at 0.06');
+}
+
+console.log('\nSIGNATURE MOMENTS (src/lib/sweep.ts)');
+{
+  const f0 = bootSweep(0, 0.3, 24)!;
+  ok(f0.frac === 0 && f0.speed === 0, 'boot sweep starts at 0 (ring + numeral)');
+  const peak = bootSweep(BOOT_UP_MS - 1, 0.3, 24)!;
+  ok(peak.frac > 0.99 && Math.abs(peak.speed! - BOOT_PEAK_MPH) <= 1, `boot sweep peaks at full scale (${peak.frac.toFixed(3)}, ${peak.speed})`);
+  let mono = true;
+  for (let t = 0, prev = -1; t < BOOT_UP_MS; t += 16) {
+    const f = bootSweep(t, 0, 0)!.frac;
+    if (f < prev) mono = false;
+    prev = f;
+  }
+  ok(mono, 'boot sweep rises monotonically (ticks light in sequence)');
+  const land = bootSweep(BOOT_LIVE_BY_MS - 1, 0.3, 24)!;
+  ok(Math.abs(land.frac - 0.3) < 0.01 && land.speed === 24, `boot sweep lands on live values (${land.frac.toFixed(3)}, ${land.speed})`);
+  ok(bootSweep(BOOT_LIVE_BY_MS, 0.3, 24) === null, 'boot sweep hands off to live by BOOT_LIVE_BY_MS');
+  ok(BOOT_LIVE_BY_MS < BOOT_MS && BOOT_MS <= 1200, `boot sweep hard-capped ≤ 1.2 s (${BOOT_MS} ms)`);
+  ok(bootSweep(NaN, 0, 0) === null && bootSweep(-5, 0, 0) === null, 'boot sweep tolerates bad clocks');
+
+  const c0 = connectSweep(0, 0.4, 0.15)!;
+  ok(Math.abs(c0.frac - 0.4) < 1e-9 && c0.redline === 0, 'connect sweep starts where the ring was, redline dark');
+  const cEnd = connectSweep(CONNECT_MS - 1, 0.4, 0.15)!;
+  ok(Math.abs(cEnd.frac - 0.15) < 0.01 && cEnd.redline === 1, 'connect sweep lands on live rpm, redline lit');
+  ok(connectSweep(CONNECT_MS, 0.4, 0.15) === null, 'connect sweep ends at CONNECT_MS');
 }
 
 console.log(`\n${failures === 0 ? '✅ ALL CHECKS PASSED' : `❌ ${failures} CHECK(S) FAILED`}\n`);

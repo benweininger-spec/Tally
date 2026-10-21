@@ -153,3 +153,37 @@ export function zeroSixtyStep(s: ZeroSixtyState, speedMph: number, tSec: number)
 
   return { phase, t0, result, prevSpeed: speedMph, prevT: tSec, seeded: true };
 }
+
+// ---- altitude profile + grade ---------------------------------------------
+/** Altitude history is sampled by DISTANCE, not time: one sample per ALT_SAMPLE_MI. */
+export const ALT_SAMPLE_MI = 0.02;
+/** Ring size: 250 × 0.02 mi ≈ the last 5 miles. */
+export const ALT_SLOTS = 250;
+const FT_PER_MI = 5280;
+
+/**
+ * Road grade (%) over the last `windowMi` of distance-spaced altitude samples (ft,
+ * oldest → newest). Least-squares slope, not an endpoint difference: GPS altitude is
+ * noisy (±10–30 ft), and a fit over the window steadies the number. Null until there
+ * are enough samples to span the window.
+ */
+export function gradePct(altFt: number[], spacingMi = ALT_SAMPLE_MI, windowMi = 0.1): number | null {
+  if (!(spacingMi > 0)) return null;
+  const k = Math.max(1, Math.round(windowMi / spacingMi)); // intervals in the window
+  if (altFt.length < k + 1) return null;
+  const pts = altFt.slice(-(k + 1));
+  const n = pts.length;
+  const xm = (n - 1) / 2;
+  let ym = 0;
+  for (const y of pts) ym += y;
+  ym /= n;
+  let num = 0;
+  let den = 0;
+  for (let i = 0; i < n; i++) {
+    num += (i - xm) * (pts[i] - ym);
+    den += (i - xm) * (i - xm);
+  }
+  if (!Number.isFinite(num) || den === 0) return null;
+  const ftPerSample = num / den;
+  return (ftPerSample / (spacingMi * FT_PER_MI)) * 100;
+}

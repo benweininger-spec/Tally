@@ -49,6 +49,7 @@ export async function listBondedObdDevices(): Promise<ObdDevice[]> {
 
 export class ClassicSppTransport implements ObdTransport {
   status: TransportStatus = 'disconnected';
+  deviceName: string | null = null;
   private device: any = null;
   private connectedAddress: string | null = null;
   private dataSub: { remove: () => void } | null = null;
@@ -83,6 +84,7 @@ export class ClassicSppTransport implements ObdTransport {
         charset: 'ascii',
         CONNECTOR_TYPE: 'rfcomm',
       });
+      this.deviceName = this.device?.name || null;
 
       this.dataSub = this.device.onDataReceived((ev: any) => {
         const data: string = ev?.data ?? '';

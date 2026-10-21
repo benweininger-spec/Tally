@@ -153,6 +153,12 @@ export interface History {
   longG: number[];
   /** speed samples, oldest -> newest, fixed length */
   speed: number[];
+  /**
+   * altitude (ft), sampled every ALT_SAMPLE_MI (0.02 mi) of trip distance — NOT per
+   * tick — oldest -> newest, up to ALT_SLOTS (250 ≈ 5 mi). Grows from empty in live
+   * mode until the first fixes arrive.
+   */
+  altitude: number[];
 }
 
 /**

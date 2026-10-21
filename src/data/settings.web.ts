@@ -11,12 +11,16 @@ import type { DockTile } from '../dock/defaults';
 
 export type SourceMode = 'sim' | 'live';
 export type ThemeMode = 'light' | 'auto' | 'dark';
+export type FaceId = 'home' | 'drive' | 'trail' | 'night';
+export const FACE_IDS: FaceId[] = ['home', 'drive', 'trail', 'night'];
 
 const KEY_MODE = 'tacoma-dash:sourceMode';
 const KEY_CAL = 'tacoma-dash:imuCalibration';
 const KEY_OBD_MAC = 'tacoma-dash:obdMac';
 const KEY_THEME = 'tacoma-dash:themeMode';
 const KEY_DOCK = 'tacoma-dash:dock';
+const KEY_FACE = 'tacoma-dash:face';
+const KEY_MOTION = 'tacoma-dash:reducedMotion';
 
 const ls = (): Storage | null => {
   try {
@@ -67,4 +71,21 @@ export async function loadDock(): Promise<DockTile[] | null> {
 
 export async function saveDock(tiles: DockTile[]): Promise<void> {
   ls()?.setItem(KEY_DOCK, JSON.stringify(tiles));
+}
+
+export async function loadFace(): Promise<FaceId> {
+  const v = ls()?.getItem(KEY_FACE);
+  return FACE_IDS.includes(v as FaceId) ? (v as FaceId) : 'home';
+}
+
+export async function saveFace(face: FaceId): Promise<void> {
+  ls()?.setItem(KEY_FACE, face);
+}
+
+export async function loadReducedMotion(): Promise<boolean> {
+  return ls()?.getItem(KEY_MOTION) === '1';
+}
+
+export async function saveReducedMotion(reduced: boolean): Promise<void> {
+  ls()?.setItem(KEY_MOTION, reduced ? '1' : '0');
 }

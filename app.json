@@ -39,7 +39,8 @@
       "./plugins/withBluetoothClassic",
       "./plugins/withRadioQueries",
       "./plugins/withCarPlayQueries",
-      "./plugins/withHomeLauncher"
+      "./plugins/withHomeLauncher",
+      "./plugins/withLauncherQueries"
     ]
   }
 }

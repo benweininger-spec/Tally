@@ -19,6 +19,10 @@ const mk = <T>(value: T): Signal<T> => ({ value, status: 'live', updatedAt: Date
 const no = <T>(): Signal<T> => ({ value: null, status: 'absent', updatedAt: null });
 
 const HISTORY_LEN = 240; // samples shown in the scrolling waveform window
+// altitude profile — mirrors ALT_SAMPLE_MI / ALT_SLOTS in src/lib/derive.ts (inlined:
+// this file must stay free of runtime imports for the Node verifier)
+const ALT_SAMPLE_MI = 0.02;
+const ALT_SLOTS = 250;
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 
 export interface SimOptions {
@@ -65,6 +69,13 @@ export class SimulatedDataSource implements DataSource {
   // history ring buffers
   private histLongG: number[];
   private histSpeed: number[];
+  private histAlt: number[] = [];
+  private altNextAt = 0; // trip distance (mi) of the next altitude sample
+
+  // rolling terrain: altitude as a function of DISTANCE (amplitude ft, wavelength mi,
+  // phase) — so climbing/descending tracks the miles driven and the grade is coherent
+  private terrain: [number, number, number][] = [];
+  private terrainBase = 1284;
 
   constructor(options: SimOptions = {}) {
     this.opts = {
@@ -75,6 +86,30 @@ export class SimulatedDataSource implements DataSource {
     this.rngState = this.opts.seed >>> 0;
     this.histLongG = new Array(HISTORY_LEN).fill(0);
     this.histSpeed = new Array(HISTORY_LEN).fill(this.speed);
+
+    // seeded rolling hills: a long swell, mid rollers, short dips (max grade ≈ 15%)
+    this.terrain = [
+      [140, 3.0, this.rnd() * Math.PI * 2],
+      [40, 0.8, this.rnd() * Math.PI * 2],
+      [8, 0.2, this.rnd() * Math.PI * 2],
+    ];
+    // pre-fill the last ~5 mi so the profile reads complete from the first frame
+    for (let i = ALT_SLOTS - 1; i >= 0; i--) this.histAlt.push(this.terrainAt(this.trip - i * ALT_SAMPLE_MI));
+    this.altNextAt = this.trip + ALT_SAMPLE_MI;
+    this.altitude = this.terrainAt(this.trip);
+  }
+
+  private terrainAt(mi: number): number {
+    let alt = this.terrainBase;
+    for (const [amp, wl, ph] of this.terrain) alt += amp * Math.sin((2 * Math.PI * mi) / wl + ph);
+    return alt;
+  }
+
+  /** terrain slope at `mi`, ft per ft (rise / run) */
+  private slopeAt(mi: number): number {
+    let dAltPerMi = 0;
+    for (const [amp, wl, ph] of this.terrain) dAltPerMi += ((amp * 2 * Math.PI) / wl) * Math.cos((2 * Math.PI * mi) / wl + ph);
+    return dAltPerMi / 5280;
   }
 
   // small deterministic PRNG (mulberry32)
@@ -87,6 +122,15 @@ export class SimulatedDataSource implements DataSource {
 
   setObdConnected(connected: boolean) {
     this.opts.obdConnected = connected;
+  }
+
+  // null = follow the wall clock (7am–7pm); true/false = force day / night (SET → SIM)
+  private daylightOverride: boolean | null = null;
+  setDaylightOverride(v: boolean | null) {
+    this.daylightOverride = v;
+  }
+  getDaylightOverride(): boolean | null {
+    return this.daylightOverride;
   }
 
   start() {
@@ -105,7 +149,7 @@ export class SimulatedDataSource implements DataSource {
   }
 
   getHistory(): History {
-    return { longG: this.histLongG, speed: this.histSpeed };
+    return { longG: this.histLongG, speed: this.histSpeed, altitude: this.histAlt };
   }
 
   /** Advance the simulation one frame. Public so tests can step deterministically. */
@@ -133,13 +177,19 @@ export class SimulatedDataSource implements DataSource {
     const rawLatG = (this.speed * 0.447 * yawRad) / 9.81; // v(m/s)*omega / g
     this.latG = this.latG * 0.8 + rawLatG * 0.2;
 
-    // terrain
-    this.altitude += (this.rnd() - 0.48) * 2.2;
-    this.pitch = clamp(this.pitch + (this.rnd() - 0.5) * 0.6 - this.pitch * 0.02, -16, 18);
-    this.roll = clamp(this.roll + (this.rnd() - 0.5) * 0.5 - this.roll * 0.03, -14, 14);
-
     // trip + electrical
     this.trip += (this.speed * dt) / 3600;
+
+    // terrain follows distance; pitch leans toward the road grade (plus body motion)
+    this.altitude = this.terrainAt(this.trip) + (this.rnd() - 0.5) * 0.6;
+    const gradeDeg = (Math.atan(this.slopeAt(this.trip)) * 180) / Math.PI;
+    this.pitch = clamp(this.pitch + (gradeDeg - this.pitch) * 0.05 + (this.rnd() - 0.5) * 0.6, -16, 18);
+    this.roll = clamp(this.roll + (this.rnd() - 0.5) * 0.5 - this.roll * 0.03, -14, 14);
+    while (this.trip >= this.altNextAt) {
+      this.histAlt.push(this.altitude);
+      if (this.histAlt.length > ALT_SLOTS) this.histAlt.shift();
+      this.altNextAt += ALT_SAMPLE_MI;
+    }
     if (this.speed > 1) this.movingSec += dt;
     this.voltage = clamp(13.9 + this.longG * 0.4 + (this.rnd() - 0.5) * 0.06, 12.0, 14.8);
 
@@ -218,7 +268,7 @@ export class SimulatedDataSource implements DataSource {
       system: {
         voltage: mk(round1(this.voltage)),
         now: Date.now(),
-        isDaylight: hour >= 7 && hour < 19,
+        isDaylight: this.daylightOverride ?? (hour >= 7 && hour < 19),
         gpsFix: true,
         satellites: mk(11),
         wifi: true,

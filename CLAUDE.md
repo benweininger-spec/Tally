@@ -11,7 +11,7 @@ comments that no one re-reads.
 
 ---
 
-## Current state (milestone 1 ✅ · milestone 2 — live data wired)
+## Current state (milestone 1 ✅ · milestone 2 — live data wired · Phases B+C landed, device-unverified)
 
 A sim-driven preview of the **clean-hybrid home face** (M1), plus a complete
 **`LiveDataSource`** that feeds the same UI from real hardware (M2), selectable at
@@ -31,9 +31,10 @@ runtime. Web still runs the sim with zero hardware; live mode is native-only.
   the live ~30fps stream (no animation lib; GPU-light). Center column of the home face.
 - ✅ **Theme toggle** LIGHT / AUTO / DARK in SET (AUTO follows daylight); persisted
   via `ThemeProvider` + `useThemeMode()`.
-- ✅ **Customizable dock** (`src/dock/*`) — editable app tiles (label + launch link),
-  reorder/add/remove/reset in SET → DOCK, persisted, launched via `Linking`. CarPlay
-  (static) and SET (settings) are pinned bookends.
+- ✅ **Customizable dock** (`src/dock/*`) — tiles are `{id,label,package,activity?,url?}`:
+  launch by package (AppList module) with a deep-link URL fallback; v1 `{label,url}` tiles
+  migrate via `normalizeDock`. Reorder/remove/reset + link tiles in SET → DOCK. CarPlay
+  (static), APPS (drawer) and SET are pinned.
 - ✅ **Radio in the media box** (`src/radio/*`) — a BLUETOOTH/RADIO source toggle. The
   FM/AM tuner has **no public control API** on this hardware (MCU-driven, same wall as
   Tier D), so it's **launch-only**: RADIO opens the factory radio app via
@@ -46,14 +47,41 @@ runtime. Web still runs the sim with zero hardware; live mode is native-only.
 - ✅ **Traction circle** (g-g dot, `TractionCircle.tsx`) + **reactive background**
   (`ReactiveBackground.tsx`, speed/lat-g amber glow, nothing when parked). Parked-heading
   hold; RPM/speed follower glide; waveform range 0.40 g.
-- ⬜ Phase A/B/C — see Roadmap.
+- ✅ **Plan items 1–10** (`docs/PLAN-phases-B-C.md` — per-item status + the on-truck
+  checklist live there). Web-verified in sim; native compiled into a release APK; NOT yet
+  run on the head unit:
+  1. **App drawer** — `modules/app-list` (Kotlin: MAIN/LAUNCHER activities, 96 px PNG
+     icons cached, explicit-component launch), `withLauncherQueries` plugin,
+     `src/apps/AppsProvider.tsx`, `src/screens/AppDrawer.tsx` (6×3 paged, hold = pin).
+  2. **Mode faces** — `src/screens/faces/{Home,Drive,Trail,Night}Face.tsx` in
+     `FacePager` (PanResponder capture + one native-driver translateX; only active +
+     drag-neighbor mounted; last face persisted). NIGHT = `amberNightDim` (night palette at
+     40% luminance). Dusk suggests NIGHT once (header pill), never auto-switches.
+  3. **Quick controls** — `modules/sys-controls` (brightness/timeout behind the
+     WRITE_SETTINGS grant, media volume, read-only BT/Wi-Fi + deep links) → SET → QUICK
+     CONTROLS; `expo-network` → header WI-FI/LTE (`connectivityProvider`).
+  4. **Boot sweep** — pure timeline `src/lib/sweep.ts`, played inside PulseTach's loop via
+     `signature/sweepChannel.ts`; `BootSweep` veil; SET → MOTION → REDUCED skips it.
+  5. **Altitude + grade** — `History.altitude` (every 0.02 mi, 250 slots), `gradePct`
+     (least-squares, `src/lib/derive.ts`), `AltitudeRibbon` (Drive strip + Trail band).
+  6. **Dusk crossfade** — `lerpTheme`, 60 quantized steps over 30 s (0.5 s for a tap).
+  7. **Press feedback** — `src/components/ui/Press.tsx` on every tap target.
+  8. **OBD-connect moment** — `ConnectMoment` (edge-triggered sweep + ticker), staggered
+     VehiclePanel; SET → SIMULATOR has OBD ON/OFF + DAY/NIGHT override.
+  9. **Daylight** — `amberDay` retuned to ≥ 7:1 (accent 8.1, text 17.1, warn 7.5);
+     `stroke` / `ambientMax` tokens; `npm run contrast`; SET → THEME split preview.
+  10. **Skia** — `PulseTachSkia` + `ReactiveBackgroundSkia` (Reanimated shared values,
+     zero React renders per frame); SVG kept as web renderer + native fallback
+     (`skiaFallback.tsx`).
 
 ## Run it
 
 ```bash
 npm install
 npm run web        # opens the 2000×1200 stage in a browser (sim), scaled to fit
-npm run verify     # pure-logic checks (geometry, sim, units, IMU, ELM327, derived)
+npm run verify     # pure-logic checks (geometry, sim, units, IMU, ELM327, derived,
+                   # grade, sweep timelines, theme math, day contrast)
+npm run contrast   # WCAG table for every palette token (day targets in themes.ts)
 ```
 
 **Live on the head unit** (Expo dev client + ADB sideload): see
@@ -120,11 +148,17 @@ Data tiers (see `docs/design-brief.md` §3):
 - TypeScript strict. Path alias `@/*` → `src/*` (also plain relative imports work).
 - Pure, testable logic (geometry, formatting, sim math) lives in `src/lib` and
   `src/data` with **no React imports**, so `npm run verify` can run it in Node.
-- `SimulatedDataSource.ts` and the pure `src/lib/*` (`pulse`, `units`, `imu`,
-  `elm327`, `derive`) must stay runtime-self-contained (type-only relative imports,
-  no React/native) so the Node type-strip verifier (`npm run verify`) keeps working.
-  `LiveDataSource` + `src/data/live/**` are the *only* place native modules are
-  imported, and they're never pulled into `verify` or the web bundle.
+- `SimulatedDataSource.ts`, the pure `src/lib/*` (`pulse`, `units`, `imu`, `elm327`,
+  `derive`, `sweep`) and `src/theme/themes.ts` must stay runtime-self-contained
+  (type-only relative imports, no React/native) so the Node type-strip verifier
+  (`npm run verify`) keeps working.
+- Native code is reached only through: `LiveDataSource` + `src/data/live/**` (dynamic,
+  native + live only); the local modules' JS faces (`modules/app-list`,
+  `modules/sys-controls` — each has an `index.web.ts` stub, resolved optionally so an old
+  dev client degrades instead of crashing); and the `*Skia.tsx` surfaces, which load
+  lazily behind `skiaWithFallback` (SVG twin on failure; `*.web.tsx` → SVG on web).
+- Every tap target uses `Press` (`src/components/ui/Press.tsx`) — tactile feedback,
+  native driver. Every decorative animation respects SET → MOTION (`useMotionPref`).
 - Fonts: Oxanium (display) + JetBrains Mono (labels). Loaded via CDN on web;
   add `expo-font` + `@expo-google-fonts/*` for native in milestone 2.
 
@@ -165,12 +199,13 @@ fallback.
   `@expo-google-fonts` (Oxanium/JetBrains Mono registered under the style family
   names). ③ Tier-B media compiled in (`npm run media:enable`) + Notification access.
   *After this the stock OS is invisible.*
-- **Phase B — Become a system.** App drawer / picker (launch by package + icons,
+- **Phase B — Become a system (✅ landed, device-unverified).** App drawer / picker (launch by package + icons,
   replaces hand-typed dock URLs); system controls in SET (brightness, volume, BT/Wi-Fi
   status + deep-links, display sleep) so Android Settings is rare; **mode faces as the
   information architecture** — a calmer Home (speed + pulse + a glance or two) with the
   dense instruments one swipe away: Sport / Trail / Minimal-Night.
-- **Phase C — Bespoke polish.** Skia port of PulseTach + full-motion reactive
+- **Phase C — Bespoke polish (mostly ✅: Skia, sweep, crossfade, press, connect moment,
+  amberDay, altitude ribbon; open: source-swap "level up", drive-history ridgeline).** Skia port of PulseTach + full-motion reactive
   background; boot self-test sweep; source-swap "level up"; tile micro-interactions;
   30s day→night crossfade; **sunlight (`amberDay`) hardening**; drive-history
   ridgeline; altitude + grade ribbon. OBD (M3) validation once the vLinker is paired.
@@ -181,6 +216,12 @@ store; widgets are `React.memo` + `useTelemetry(selector)` and wake only when th
 slice changes. PulseTach runs its own ~25fps loop with an idle-skip. Data tick is 20fps.
 Result: idle rendering 29fps→~1.5fps, CPU 203%→~55%. Don't put fast data in context
 and don't add continuous motion without Skia.
+**Skia (2026-10):** per-frame motion goes through Reanimated shared values into Skia
+props (PulseTach writes path strings from its loop; Skia's `processPath` worklet builds
+the SkPaths on the UI thread) — zero React renders per frame. Text stays in RN `Text`
+and re-renders only when the shown value changes. Web (dev) measurement: React work
+107.7 → 6.4 ms/s for the signature. Device target (unmeasured): ≥ 90 % non-janky
+frames in `dumpsys gfxinfo`, CPU < 60 % with the sim at speed.
 
 ## Key references
 

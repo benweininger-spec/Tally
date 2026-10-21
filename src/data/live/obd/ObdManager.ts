@@ -74,6 +74,11 @@ export class ObdManager {
     return this.initialized && this.transport?.status === 'connected';
   }
 
+  /** the adapter's Bluetooth name, if the transport reported one */
+  get adapterName(): string | null {
+    return this.transport?.deviceName ?? null;
+  }
+
   /** Connect over an already-constructed transport, init, and begin polling. */
   async connect(transport: ObdTransport): Promise<void> {
     this.transport = transport;

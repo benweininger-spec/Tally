@@ -1,9 +1,14 @@
-import React from 'react';
+import React, { createContext, useContext } from 'react';
 import { useWindowDimensions, View } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
 
 export const STAGE_W = 2000;
 export const STAGE_H = 1200;
+
+const StageScaleContext = createContext(1);
+
+/** Window px per stage px. Gesture deltas arrive in window px — divide by this. */
+export const useStageScale = () => useContext(StageScaleContext);
 
 /**
  * Renders children on a fixed 2000x1200 canvas (the Dasaita Vivid13 panel) and
@@ -26,7 +31,7 @@ export function Stage({ children }: { children: React.ReactNode }) {
           overflow: 'hidden',
         }}
       >
-        {children}
+        <StageScaleContext.Provider value={scale}>{children}</StageScaleContext.Provider>
       </View>
     </View>
   );

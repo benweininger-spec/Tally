@@ -161,3 +161,52 @@ under 60 % with sim at speed (was ~150 %).
 that reuses item-4's override hook. 5 and 6 are self-contained. 9 is tokens only but needs
 the owner outdoors. 10 last: it's the only one that needs a native rebuild for a non-native
 reason, and everything else is written to not depend on it.
+
+---
+
+## Status — 2026-10-20 (all 10 implemented; web-verified; release APK builds; NOT run on the unit)
+
+`npx tsc --noEmit --ignoreDeprecations 6.0` and `npm run verify` are clean (new checks:
+grade, altitude ring, sweep timelines, theme math, day contrast). Native: prebuilt (no
+`--clean`; keystore + `local.properties` untouched) and `./gradlew assembleRelease`
+succeeds with `app-list`, `sys-controls`, Skia, Reanimated, expo-network.
+
+**Deviations from the plan, and why**
+- **#2** Trail swapped its altitude card for **ground speed** once the ribbon took over
+  altitude — every face now carries the < 1 s speed glance.
+- **#3** `WRITE_SETTINGS` / `ACCESS_WIFI_STATE` are declared in the sys-controls module's
+  own manifest (merged at build) rather than a config plugin — same result, self-contained.
+- **#4/#8** PulseTach is NOT driven by `overrideFrac/overrideSpeed` props off a
+  native-driver Animated value (native-driven values can't be read back in JS without
+  per-frame bridge traffic). Instead the moments are **pure timelines** (`src/lib/sweep.ts`,
+  unit-tested hard caps) that PulseTach's existing loop evaluates via a tiny module-level
+  `sweepChannel`. The veil/ticker/cells do use the native driver.
+- **#5** The ribbon polls History at 2 Hz (PulseTach's pattern) instead of adding a
+  reactive field to `DashboardData`; `History.altitude` is the only contract change.
+- **#6** Only AUTO's dusk/dawn flip fades 30 s; a tap on LIGHT/DARK fades 0.5 s; the stored
+  mode at boot snaps.
+- **#9** Day = light background (`#FBF5E8`) + dark amber, per the recommendation. Also
+  added `panelBorder` ≥ 3:1 so tile edges survive glare.
+- **#10** Geometry stays in `src/lib/pulse.ts` (not workletized): the loop writes SVG path
+  strings to shared values and Skia's own `processPath` worklet builds SkPaths on the UI
+  thread. Numerals are RN `Text` overlays (keeps letter-spacing + loaded fonts) that
+  re-render only on value change. SVG is kept as the web renderer AND the native fallback
+  (`skiaFallback.tsx`: lazy require + error boundary) — crash-free beats pretty.
+
+**On-truck checklist (owner)** — `push-to-truck.command`, then:
+1. Drawer: APPS lists every app with icons; Waze/Spotify open; hold → pins; ZLink's
+   CarPlay entry opens CarPlay directly (no chooser). Dock CarPlay tile still works.
+2. Swipe Home ↔ Drive ↔ Trail ↔ Night; `adb shell dumpsys gfxinfo com.benji.tacomadash`
+   during swipes; face survives a reboot.
+3. SET → QUICK CONTROLS → ALLOW… (grant "Modify system settings"), then brightness /
+   timeout; volume moves the media stream with no system HUD; BT/Wi-Fi OPEN; header
+   WI-FI/LTE match reality. (FYT units may route brightness/volume via the MCU — if the
+   sliders do nothing, that's the wall, not a bug.)
+4. Cold start shows the ≤ 1.2 s sweep once; HOME presses don't replay it.
+5. Drive a hill: ribbon fills (live starts empty), grade reads sane vs. road signs.
+6. AUTO at dusk: 30 s fade, no hitch; NIGHT FACE pill appears once.
+7. Mash the dock: no dropped frames (gfxinfo).
+8. Pair the vLinker → CONNECT: sweep + ticker with the adapter's name.
+9. Midday sun: judge DAY vs NIGHT with SET → THEME → split preview; retune `amberDay`.
+10. Skia: `adb logcat | grep -i "Skia unavailable\|falling back"` must be empty;
+    gfxinfo ≥ 90 % non-janky with sim at speed; CPU < 60 % (was ~150 %).
