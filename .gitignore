@@ -56,3 +56,4 @@ google-services.json
 # build output anywhere (incl. modules/media-bridge/android/build)
 **/android/build/
 **/.cxx/
+*.apk

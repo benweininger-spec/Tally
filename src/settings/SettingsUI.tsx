@@ -154,7 +154,7 @@ function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => 
             </Press>
           </View>
 
-          <ScrollView style={{ maxHeight: 820 }} contentContainerStyle={{ gap: 18 }}>
+          <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ gap: 18 }}>
             {/* system quick controls first — the thing reached for most while driving */}
             <Section t={t} title="QUICK CONTROLS">
               <QuickControls t={t} visible={visible} />
@@ -470,7 +470,7 @@ function Toggle({
 
 const styles = StyleSheet.create({
   scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
-  sheet: { width: 920, maxWidth: '92%', borderWidth: 1, borderRadius: 10, padding: 32 },
+  sheet: { width: 920, maxWidth: '92%', maxHeight: '94%', borderWidth: 1, borderRadius: 10, padding: 32 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   title: { fontFamily: 'Oxanium', fontSize: 30, fontWeight: '800', letterSpacing: 2 },
   close: { fontFamily: 'JetBrains Mono', fontSize: 15, letterSpacing: 2 },
