@@ -18,6 +18,8 @@ export interface Theme {
   accent: string;
   accentSoft: string;
   accentGlow: string; // rgba for shadows/drop-shadows
+  /** secondary instrument stroke (Signal Library "b": grip envelope, up-vector, RPM track) — not a warning */
+  accentAlt: string;
   /** primary readable text */
   text: string;
   textDim: string;
@@ -43,6 +45,7 @@ export const amberNight: Theme = {
   accent: '#FFB454',
   accentSoft: '#c9a96f',
   accentGlow: 'rgba(255,180,84,0.45)',
+  accentAlt: '#FF6A3D',
   text: '#F4E6CF',
   textDim: '#c9a96f',
   textFaint: '#9a7f54',
@@ -73,6 +76,7 @@ export const amberDay: Theme = {
   accent: '#7A3800', // deep burnt amber
   accentSoft: '#6B3A0E',
   accentGlow: 'rgba(122,56,0,0.18)',
+  accentAlt: '#A3360B',
   text: '#1C1103', // espresso, near-black warm
   textDim: '#4A320F',
   textFaint: '#6E5428',

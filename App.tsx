@@ -12,6 +12,7 @@ import { MotionPrefProvider } from './src/settings/MotionPref';
 import { RadioProvider } from './src/radio/RadioProvider';
 import { SettingsUIProvider } from './src/settings/SettingsUI';
 import { HomeScreen } from './src/screens/HomeScreen';
+import { DriveRecorderFeed } from './src/data/driveRecorder';
 
 const FONT_LINK =
   'https://fonts.googleapis.com/css2?family=Oxanium:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap';
@@ -52,6 +53,8 @@ export default function App() {
               <RadioProvider>
                 <SettingsUIProvider>
                   <StatusBar hidden />
+                  {/* always-on history for the Signal Library instruments (renders nothing) */}
+                  <DriveRecorderFeed />
                   <HomeScreen />
                 </SettingsUIProvider>
               </RadioProvider>

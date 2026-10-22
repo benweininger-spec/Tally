@@ -73,6 +73,20 @@ runtime. Web still runs the sim with zero hardware; live mode is native-only.
   10. **Skia** — `PulseTachSkia` + `ReactiveBackgroundSkia` (Reanimated shared values,
      zero React renders per frame); SVG kept as web renderer + native fallback
      (`skiaFallback.tsx`).
+- ✅ **Signal Library instruments** (from the Claude Design handoff `design_handoff_tacoma_launcher`,
+  studies 04 / 06 / 07; math ported 1:1 into pure `src/lib/{gscope,speedRecord,mesh}.ts`):
+  - **G-Scope** — DRIVE traction card (replaced `TractionCircle`) and NIGHT → SCOPE. Hold = reset peaks.
+  - **Speed Record** — tachograph disc, NIGHT → RECORD (default); clock in the hub.
+  - **Attitude Mesh** — TRAIL hero, tilt ×1.8 (labelled). The truck is `src/lib/tacoma.ts`: a
+    wireframe of the owner's **3rd-gen Access Cab / 6.1 ft bed / SR 4x2**, generated from Toyota's
+    published dimensions (212.3″ L, 127.4″ WB, 74.4″ W, 70.6″ H, 245/75R16) — edit stations there.
+    The study's rotation had pitch AND roll inverted; `tiltTransform` follows the IMU convention
+    (verify pins it).
+  - NIGHT has a 3-way switch RECORD / SCOPE / RING (persisted, `nightStyle`).
+  - Plumbing: `src/lib/driveRecorder.ts` + `<DriveRecorderFeed/>` (always-on g trail, grip envelope,
+    90 s speed/RPM ring, fed via `useTelemetryListener` — no renders); `src/components/viz/VizSurface`
+    = declare styled layers once, push path strings per frame; Skia on device, SVG on web/fallback.
+  - New theme token `accentAlt` (the studies' second color: envelope, up-vector, RPM track).
 
 ## Run it
 

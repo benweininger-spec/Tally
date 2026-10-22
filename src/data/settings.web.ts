@@ -13,6 +13,9 @@ export type SourceMode = 'sim' | 'live';
 export type ThemeMode = 'light' | 'auto' | 'dark';
 export type FaceId = 'home' | 'drive' | 'trail' | 'night';
 export const FACE_IDS: FaceId[] = ['home', 'drive', 'trail', 'night'];
+/** NIGHT face hero: the original minimal ring, the speed-record disc, or the G-Scope. */
+export type NightStyle = 'ring' | 'record' | 'scope';
+const NIGHT_STYLES: NightStyle[] = ['ring', 'record', 'scope'];
 
 const KEY_MODE = 'tacoma-dash:sourceMode';
 const KEY_CAL = 'tacoma-dash:imuCalibration';
@@ -21,6 +24,7 @@ const KEY_THEME = 'tacoma-dash:themeMode';
 const KEY_DOCK = 'tacoma-dash:dock';
 const KEY_FACE = 'tacoma-dash:face';
 const KEY_MOTION = 'tacoma-dash:reducedMotion';
+const KEY_NIGHT = 'tacoma-dash:nightStyle';
 
 const ls = (): Storage | null => {
   try {
@@ -88,4 +92,13 @@ export async function loadReducedMotion(): Promise<boolean> {
 
 export async function saveReducedMotion(reduced: boolean): Promise<void> {
   ls()?.setItem(KEY_MOTION, reduced ? '1' : '0');
+}
+
+export async function loadNightStyle(): Promise<NightStyle> {
+  const v = ls()?.getItem(KEY_NIGHT);
+  return NIGHT_STYLES.includes(v as NightStyle) ? (v as NightStyle) : 'record';
+}
+
+export async function saveNightStyle(style: NightStyle): Promise<void> {
+  ls()?.setItem(KEY_NIGHT, style);
 }

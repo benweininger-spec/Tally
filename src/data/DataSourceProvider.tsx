@@ -238,6 +238,17 @@ export function useTelemetry<T>(
 }
 
 /**
+ * Run `cb` on every telemetry tick WITHOUT re-rendering — for recorders that accumulate
+ * history (g envelope, speed record) regardless of which face is on screen.
+ */
+export function useTelemetryListener(cb: (d: DashboardData) => void): void {
+  const store = useStore();
+  const ref = useRef(cb);
+  ref.current = cb;
+  useEffect(() => store.subscribe(() => ref.current(store.getSnapshot())), [store]);
+}
+
+/**
  * Full snapshot — RE-RENDERS EVERY TICK. Prefer useTelemetry(selector) in any widget
  * that stays mounted while data streams. Kept for completeness / rare full reads.
  */

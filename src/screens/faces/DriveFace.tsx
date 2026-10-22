@@ -4,7 +4,7 @@ import { PulseTach } from '../../components/signature/PulseTach';
 import { ConnectMoment } from '../../components/signature/ConnectMoment';
 import { TelemetryStrip } from '../../components/TelemetryStrip';
 import { GyroCard } from '../../components/GyroCard';
-import { TractionCircle } from '../../components/TractionCircle';
+import { GScopeCard } from '../../components/GScopeCard';
 import { MediaWidget } from '../../components/MediaWidget';
 import { CompassCard } from '../../components/CompassCard';
 import { VehiclePanel } from '../../components/VehiclePanel';
@@ -30,12 +30,12 @@ export const DriveFace = React.memo(function DriveFace() {
         <TelemetryStrip />
       </View>
 
-      {/* center column: attitude on top, traction (g-g) below — both Tier-A instruments */}
+      {/* center column: attitude on top, G-Scope (g-g + grip envelope) below — both Tier A */}
       <View style={{ position: 'absolute', left: 952, top: 124, width: 332 }}>
         <GyroCard />
       </View>
       <View style={{ position: 'absolute', left: 952, top: 606, width: 332 }}>
-        <TractionCircle />
+        <GScopeCard />
       </View>
 
       {/* right rail */}

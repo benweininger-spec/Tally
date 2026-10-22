@@ -3,9 +3,10 @@ import { StyleSheet, Text, View } from 'react-native';
 import { shallowEqual, useTelemetry } from '../../data/DataSourceProvider';
 import { useTheme } from '../../theme/ThemeProvider';
 import { has } from '../../data/types';
-import { AttitudeDisc, SlipBall, signed, useAttitude } from '../../components/GyroCard';
+import { SlipBall, signed, useAttitude } from '../../components/GyroCard';
 import { CompassCard } from '../../components/CompassCard';
 import { AltitudeRibbon } from '../../components/AltitudeRibbon';
+import { AttitudeMesh } from '../../components/viz/AttitudeMesh';
 import type { Theme } from '../../theme/themes';
 
 /** Angles past these read in the warn color (off-camber / steep-grade caution). */
@@ -17,16 +18,17 @@ const BAND_W = 1904;
 const BAND_H = 234;
 
 /**
- * TRAIL — the off-road face. Hero is the inclinometer (GyroCard's attitude math at
- * 2×) with big pitch / roll numerals, heading, ground speed and lateral load, over a
- * full-width altitude profile + grade ribbon. The dock stays (shared). Stage
+ * TRAIL — the off-road face. Hero is the Attitude Mesh: a wireframe of THIS truck
+ * (3rd-gen Access Cab) tilting on scrolling terrain, beside big true pitch / roll
+ * numerals, heading, ground speed and lateral load, over a full-width altitude profile
+ * + grade ribbon. The dock stays (shared). Stage
  * coordinates; content between header (92) and dock (1018).
  */
 export const TrailFace = React.memo(function TrailFace() {
   return (
     <>
-      <View style={{ position: 'absolute', left: 110, top: 118 }}>
-        <TrailDisc />
+      <View style={{ position: 'absolute', left: 48, top: 112 }}>
+        <AttitudeMesh width={710} height={620} />
       </View>
 
       <View style={{ position: 'absolute', left: 780, top: 124, width: 1172, gap: 22 }}>
@@ -48,12 +50,6 @@ export const TrailFace = React.memo(function TrailFace() {
       </View>
     </>
   );
-});
-
-const TrailDisc = React.memo(function TrailDisc() {
-  const t = useTheme();
-  const { live, pitch, roll } = useAttitude();
-  return <AttitudeDisc size={600} pitch={pitch} roll={roll} live={live} t={t} />;
 });
 
 function RibbonBand() {

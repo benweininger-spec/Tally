@@ -69,6 +69,27 @@ import {
   CONNECT_MS,
 } from '../src/lib/sweep.ts';
 import {
+  ENV_BINS,
+  TRAIL_BANDS,
+  envelopeBin,
+  envelopePeak,
+  gscopeFrame,
+  gscopeGrid,
+  trailLife,
+  updateEnvelope,
+} from '../src/lib/gscope.ts';
+import {
+  RECORD_SLOTS,
+  RECORD_DT,
+  recordFrame,
+  recordGrid,
+  recordSpokes,
+  speedRadius,
+} from '../src/lib/speedRecord.ts';
+import { makeProjector, meshFrame, tiltTransform, truckToWorld, GRID_ALPHAS } from '../src/lib/mesh.ts';
+import { TACOMA_ACCESS_CAB } from '../src/lib/tacoma.ts';
+import { createDriveRecorder, readRecord, recordTick, resetEnvelope, RECORDER_SLOTS, TRAIL_LIFE_S } from '../src/lib/driveRecorder.ts';
+import {
   amberDay,
   amberNight,
   amberNightDim,
@@ -357,6 +378,91 @@ console.log('\nDAYLIGHT CONTRAST (amberDay, WCAG vs bg — npm run contrast for 
   ok(contrastRatio(amberDay.panelBorder, amberDay.bg) >= 3, `day tile borders ${contrastRatio(amberDay.panelBorder, amberDay.bg).toFixed(2)}:1 ≥ 3 (non-text)`);
   ok(amberDay.stroke >= 1.2 * amberNight.stroke - 1e-9, 'day ring strokes ≥ +20%');
   ok(amberDay.ambientMax <= 0.06, 'day ambient glow capped at 0.06');
+}
+
+console.log('\nSIGNAL LIBRARY — G-SCOPE (src/lib/gscope.ts)');
+{
+  ok(envelopeBin(1, 0) === 0 && envelopeBin(0, 1) === 9 && envelopeBin(-1, 0) === 18 && envelopeBin(0, -1) === 27, 'envelope bins: right / accel / left / brake = 0 / 9 / 18 / 27');
+  const env = new Array(ENV_BINS).fill(0);
+  updateEnvelope(env, 0, 0.5, 0.05);
+  ok(Math.abs(env[9] - 0.5) < 1e-9 && envelopePeak(env) === env[9], 'envelope records a 0.5 g accel peak');
+  updateEnvelope(env, 0, 0.1, 10);
+  ok(env[9] < 0.5 && env[9] > 0.4, `envelope fades slowly (${env[9].toFixed(3)} after 10 s)`);
+  ok(trailLife(0) === 0.6 && Math.abs(trailLife(1) - 5.6) < 1e-9, 'trail life 0.6 → 5.6 s with persistence');
+  const grid = gscopeGrid(200, 200, 180);
+  ok(noNaNStr(grid.inner) && noNaNStr(grid.outer) && noNaNStr(grid.cross), 'scope grid well-formed');
+  const trail = Array.from({ length: 60 }, (_, i) => [Math.sin(i / 7) * 0.4, Math.cos(i / 9) * 0.3] as [number, number]);
+  const fr = gscopeFrame({ cx: 200, cy: 200, S: 180, trail, env, lat: 0.4, long: -0.3 });
+  ok(fr.bands.length === TRAIL_BANDS && fr.bands.every((b) => b === '' || noNaNStr(b)), `trail split into ${TRAIL_BANDS} bands`);
+  ok(fr.envelope.endsWith('Z') && noNaNStr(fr.envelope), 'grip envelope closed');
+  ok(fr.beam.x > 200 && fr.beam.y > 200, 'beam: +lat right, −long (braking) down');
+  const wild = gscopeFrame({ cx: 0, cy: 0, S: 100, trail: [], env, lat: 9, long: NaN });
+  ok(Number.isFinite(wild.beam.x) && Number.isFinite(wild.beam.y) && wild.beam.x <= 0.8 * 1.12 * 100 + 1e-9, 'beam clamps wild / NaN g');
+}
+
+console.log('\nSIGNAL LIBRARY — SPEED RECORD (src/lib/speedRecord.ts)');
+{
+  ok(RECORD_SLOTS === 1800 && RECORD_DT === 0.05, '90 s at 20 Hz = 1800 samples');
+  ok(speedRadius(0, 100, 400) === 100 && speedRadius(70, 100, 400) === 400 && speedRadius(200, 100, 400) === 400, 'speed radius R0 → R1, clamped');
+  const g = recordGrid(400, 400, 140, 390);
+  ok(noNaNStr(g.major) && noNaNStr(g.minor) && noNaNStr(g.pen), 'record grid well-formed');
+  ok(noNaNStr(recordSpokes(400, 400, 140, 390, 1.3).major), 'spokes well-formed');
+  const empty = recordFrame({ cx: 400, cy: 400, R0: 140, R1: 390, speeds: [] });
+  ok(empty.line === '' && empty.head === null, 'empty record draws nothing (no crash)');
+  const speeds = Array.from({ length: RECORD_SLOTS }, (_, i) => 30 + 20 * Math.sin(i / 50));
+  const rpms = speeds.map((v, i) => (i < 900 ? NaN : v * 50));
+  const fr = recordFrame({ cx: 400, cy: 400, R0: 140, R1: 390, speeds, rpms });
+  ok(noNaNStr(fr.line) && noNaNStr(fr.fresh) && fr.area.endsWith('Z'), 'record line / fresh / area well-formed');
+  ok(fr.head !== null && Math.abs(fr.head.x - 400) < 0.01 && fr.head.y < 400, 'newest sample sits at the 12 o’clock pen');
+  ok(fr.rpm.length > 0 && !/NaN/.test(fr.rpm), 'RPM track drawn only where RPM exists');
+}
+
+console.log('\nSIGNAL LIBRARY — ATTITUDE MESH + TACOMA MODEL (src/lib/mesh.ts, tacoma.ts)');
+{
+  const m = TACOMA_ACCESS_CAB;
+  const all = [...m.body, ...m.detail, ...m.wheels].flat();
+  ok(all.every((p) => p.every(Number.isFinite)), `Tacoma model: ${m.body.length + m.detail.length + m.wheels.length} polylines, all finite`);
+  const zs = all.map((p) => p[2]);
+  const len = Math.max(...zs) - Math.min(...zs);
+  ok(Math.abs(len - 3.4) < 0.05, `model length = 212.3" scaled (${len.toFixed(2)} units)`);
+  const xs = all.map((p) => p[0]);
+  ok(Math.abs(Math.max(...xs) + Math.min(...xs)) < 1e-9, 'model is left/right symmetric');
+  const nose = Math.min(...zs);
+  const T = tiltTransform(10, 0, 1);
+  ok(T([0, 0, nose])[1] > 0, '+pitch raises the nose (IMU convention; the study had it inverted)');
+  const R = tiltTransform(0, 10, 1);
+  ok(R([0.5, 0, 0])[1] < 0 && R([0, 1, 0])[0] > 0, '+roll drops the right side and leans the roof right');
+  // the terrain's cross lines sit at z = j − frac(dist·0.3): they flow toward −z as you
+  // drive, so the nose must point to +z on the road (upstream) or the truck reverses
+  ok(truckToWorld([0, 0, nose])[2] > 0, 'truck faces into the scrolling terrain (drives forward, not in reverse)');
+  const L0 = tiltTransform(0, 0, 1)([0.3, 0.7, -1.1]);
+  ok(Math.abs(L0[0] - 0.3) < 1e-12 && Math.abs(L0[1] - 0.7) < 1e-12 && Math.abs(L0[2] + 1.1) < 1e-12, 'level = identity');
+  const P = makeProjector(700, 600);
+  const o = P(0, 0, 0);
+  ok(Math.abs(o[0] - 350) < 1e-9 && Math.abs(o[1] - 396) < 1e-9, 'projector: ground origin at (w/2, 0.66h)');
+  const fr = meshFrame({ w: 700, h: 600, distM: 123.4, pitchDeg: 25, rollDeg: -30, model: m });
+  ok(fr.grid.length === GRID_ALPHAS.length && noNaNStr(fr.body) && noNaNStr(fr.wheels) && noNaNStr(fr.detail) && noNaNStr(fr.up), 'mesh frame well-formed at an extreme pose');
+  ok(noNaNStr(meshFrame({ w: 700, h: 600, distM: NaN, pitchDeg: NaN, rollDeg: NaN, model: m }).body), 'mesh survives NaN inputs (draws level)');
+}
+
+console.log('\nDRIVE RECORDER (src/lib/driveRecorder.ts)');
+{
+  ok(RECORDER_SLOTS === RECORD_SLOTS && Math.abs(TRAIL_LIFE_S - trailLife(0.6)) < 1e-9, 'recorder constants match gscope / speedRecord');
+  const r = createDriveRecorder();
+  for (let i = 0; i < 2500; i++) recordTick(r, { lat: 0.3 * Math.sin(i / 20), long: 0.2, speedMph: i % 80, rpm: i < 2000 ? null : 2000 }, i * 0.05);
+  ok(r.count === RECORD_SLOTS, `speed ring full after 125 s (${r.count})`);
+  ok(r.trail.length > 0 && r.trail[r.trail.length - 1][2] - r.trail[0][2] <= TRAIL_LIFE_S + 1e-9, 'g trail pruned to its life');
+  const sp = new Float32Array(RECORD_SLOTS);
+  const rp = new Float32Array(RECORD_SLOTS);
+  const n = readRecord(r, sp, rp);
+  ok(n === RECORD_SLOTS && sp[n - 1] === 2499 % 80 && sp[n - 2] === 2498 % 80, 'readRecord returns oldest → newest');
+  ok(Number.isNaN(rp[0]) && rp[n - 1] === 2000, 'RPM absent (NaN) before OBD, present after');
+  ok(Math.max(...r.env) > 0.3, 'envelope accumulated');
+  resetEnvelope(r);
+  ok(r.env.every((v) => v === 0), 'hold-to-reset clears the peaks');
+  const v0 = r.version;
+  recordTick(r, { lat: null, long: null, speedMph: null, rpm: null }, 9999);
+  ok(r.version === v0 + 1 && r.gLive === false, 'absent sensors: no beam, record keeps ticking');
 }
 
 console.log('\nSIGNATURE MOMENTS (src/lib/sweep.ts)');
