@@ -30,6 +30,30 @@ interface MediaBridgeNative {
   addListener(event: string, cb: (payload: any) => void): { remove: () => void };
 }
 
+/** Friendly source name for the now-playing card. The FM/AM tuner on this Microntek
+ *  unit publishes its MediaSession through the stock Telenav launcher (FACT, on-device),
+ *  so that package means "the radio", not Bluetooth. Unknown packages fall back to a
+ *  trimmed name rather than the raw id. */
+const SOURCE_NAMES: Record<string, string> = {
+  'com.telenav.scout.launcher': 'FM RADIO',
+  'com.microntek.radio': 'FM RADIO',
+  'com.microntek.btmusic': 'BLUETOOTH A2DP',
+  'com.android.bluetooth': 'BLUETOOTH A2DP',
+  'com.spotify.music': 'SPOTIFY',
+  'com.google.android.apps.youtube.music': 'YOUTUBE MUSIC',
+  'com.apple.android.music': 'APPLE MUSIC',
+  'com.pandora.android': 'PANDORA',
+  'com.audible.application': 'AUDIBLE',
+  'au.com.shiftyjelly.pocketcasts': 'POCKET CASTS',
+  'com.zjinnova.zlink': 'CARPLAY',
+};
+export function sourceLabel(pkg?: string | null): string {
+  if (!pkg) return 'BLUETOOTH A2DP';
+  if (SOURCE_NAMES[pkg]) return SOURCE_NAMES[pkg];
+  const tail = pkg.split('.').filter((x) => !['com','android','org','net','app','apps','free'].includes(x)).pop() ?? pkg;
+  return tail.toUpperCase();
+}
+
 let native: MediaBridgeNative | null | undefined;
 function mod(): MediaBridgeNative | null {
   if (native === undefined) {
@@ -51,7 +75,7 @@ function toNowPlaying(t: NativeTrack): NowPlaying {
     isPlaying: t.playing ?? false,
     positionMs: t.positionMs ?? 0,
     durationMs: t.durationMs ?? 0,
-    source: t.package ? `BLUETOOTH · ${t.package}` : 'BLUETOOTH A2DP',
+    source: sourceLabel(t.package),
   };
 }
 
