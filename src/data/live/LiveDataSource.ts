@@ -37,6 +37,7 @@ import { loadCalibration, saveCalibration } from '../settings';
 import { LocationProvider } from './locationProvider';
 import { SensorProvider } from './sensorProvider';
 import { MediaBridgeProvider } from './mediaBridge';
+import { MtcProvider } from './mtcProvider';
 import { ConnectivityProvider } from './connectivityProvider';
 import { ObdManager, type Reading } from './obd/ObdManager';
 import { ClassicSppTransport, listBondedObdDevices } from './obd/ClassicSppTransport';
@@ -86,6 +87,7 @@ export class LiveDataSource implements DataSource, LiveControls {
   private sensors = new SensorProvider();
   private media = new MediaBridgeProvider();
   private connectivity = new ConnectivityProvider();
+  private mtc = new MtcProvider();
   private obd: ObdManager | null = null;
   private obdConnecting = false;
 
@@ -115,6 +117,7 @@ export class LiveDataSource implements DataSource, LiveControls {
     void this.sensors.start();
     this.media.start();
     this.connectivity.start();
+    this.mtc.start();
     this.timer = setInterval(() => this.tick(), this.tickMs);
   }
 
@@ -125,6 +128,7 @@ export class LiveDataSource implements DataSource, LiveControls {
     this.sensors.stop();
     this.media.stop();
     this.connectivity.stop();
+    this.mtc.stop();
     this.obd?.disconnect();
   }
 
@@ -269,11 +273,18 @@ export class LiveDataSource implements DataSource, LiveControls {
         avgSpeedMph: this.fresh(gpsR(round(loc.avgSpeedMph), loc.lastFixAt), now),
       },
       system: {
-        // per the live-data brief: 12V input has no clean Android API and is NOT on
-        // CAN, so voltage stays absent until OBD control-module voltage (PID 42).
-        voltage: obdNum(obd?.read(PIDS.CTRL_VOLTAGE) ?? { value: null, at: null }, round1),
+        // 12V: OBD control-module voltage (PID 42) when the dongle has it, else the
+        // head unit's own input voltage via CarManager "battery" (FACT, 2026-10-21 — the
+        // same source the stock status bar shows). Sim keeps its fake value.
+        voltage: (() => {
+          const fromObd = obdNum(obd?.read(PIDS.CTRL_VOLTAGE) ?? { value: null, at: null }, round1);
+          if (fromObd.status === 'live') return fromObd;
+          const mtc = this.mtc.getSnapshot();
+          return this.fresh({ value: mtc.voltage, at: mtc.voltageAt }, now, round1, 15000, 60000);
+        })(),
         now,
         isDaylight: hour >= 7 && hour < 19,
+        headlights: this.mtc.getSnapshot().headlights,
         gpsFix: loc.gpsFix,
         satellites: absent<number>(), // expo-location doesn't expose satellite count
         wifi: net.wifi,

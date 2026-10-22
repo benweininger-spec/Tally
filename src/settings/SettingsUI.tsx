@@ -208,7 +208,7 @@ function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => 
                 })}
               </View>
               <Text style={[styles.hint, { color: t.textFaint }]}>
-                AUTO follows daylight (sunrise/sunset) with a slow 30 s fade. LIGHT and DARK override it.
+                AUTO follows your headlights (then daylight) with a slow 30 s fade. LIGHT and DARK override it.
               </Text>
               <View style={styles.btnRow}>
                 <Btn t={t} label={preview ? 'HIDE SPLIT PREVIEW' : 'SHOW DAY / NIGHT SPLIT'} onPress={() => setPreview((v) => !v)} />

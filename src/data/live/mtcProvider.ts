@@ -1,0 +1,108 @@
+/**
+ * Microntek head-unit events (Tier D-ish, but it's a public broadcast, not CAN):
+ * headlights, ignition (ACC), power, OBD state, periodic CAN sync. Backed by the
+ * local Kotlin module `modules/mtc-events`; degrades to "unknown" (null) if the
+ * module isn't compiled in or the unit isn't a Microntek board.
+ *
+ * FACT (2026-10-21, Dasaita Vivid13 / MTCHS_HA4Z): flipping the headlights emits
+ *   action=com.microntek.report.event  extras { type: "headlight", value: true|false }
+ * and the raw MCU form  com.microntek.biglight.state { state: int }.
+ */
+import { requireNativeModule } from 'expo';
+
+interface MtcNative {
+  last(action: string): Record<string, unknown> | null;
+  addListener(event: string, cb: (p: MtcEvent) => void): { remove: () => void };
+}
+export interface MtcEvent {
+  action: string;
+  extras: Record<string, unknown>;
+  at: number;
+}
+
+let native: MtcNative | null | undefined;
+function mod(): MtcNative | null {
+  if (native === undefined) {
+    try {
+      native = requireNativeModule('MtcEvents') as MtcNative;
+    } catch {
+      native = null;
+    }
+  }
+  return native;
+}
+
+export interface MtcState {
+  available: boolean;
+  /** true = headlights on. null = never heard from the unit. */
+  headlights: boolean | null;
+  headlightsAt: number | null;
+  /** ignition/ACC if the unit reports it; null = unknown */
+  acc: boolean | null;
+  /** head-unit 12V input via CarManager "battery" (tenths→volts); null = unknown */
+  voltage: number | null;
+  voltageAt: number | null;
+  handbrake: boolean | null;
+  /** most recent raw event per action, for diagnostics */
+  lastByAction: Record<string, Record<string, unknown>>;
+}
+
+const truthy = (v: unknown) => v === true || v === 1 || v === '1' || v === 'true';
+
+export class MtcProvider {
+  private sub: { remove: () => void } | null = null;
+  private state: MtcState = { available: false, headlights: null, headlightsAt: null, acc: null, voltage: null, voltageAt: null, handbrake: null, lastByAction: {} };
+
+  start(): void {
+    const m = mod();
+    if (!m) return;
+    this.state.available = true;
+    // seed from anything the module already saw
+    const seed = m.last('com.microntek.report.event');
+    if (seed && seed.type === 'headlight') this.applyHeadlight(seed.value, Date.now());
+    const bat = m.last('carmanager.battery');
+    if (bat && Number(bat.value) > 0) { this.state.voltage = Number(bat.value) / 10; this.state.voltageAt = Date.now(); }
+    this.sub = m.addListener('onMtcEvent', (e) => this.onEvent(e));
+  }
+
+  stop(): void {
+    this.sub?.remove();
+    this.sub = null;
+  }
+
+  getSnapshot(): MtcState {
+    return this.state;
+  }
+
+  private applyHeadlight(v: unknown, at: number) {
+    this.state.headlights = truthy(v);
+    this.state.headlightsAt = at;
+  }
+
+  private onEvent(e: MtcEvent) {
+    this.state.lastByAction[e.action] = e.extras;
+    switch (e.action) {
+      case 'com.microntek.report.event':
+        if (e.extras.type === 'headlight') this.applyHeadlight(e.extras.value, e.at);
+        break;
+      case 'com.microntek.biglight.state':
+      case 'com.microntek.carlight':
+        if ('state' in e.extras) this.applyHeadlight(e.extras.state, e.at);
+        break;
+      case 'carmanager.battery': {
+        const v = Number(e.extras.value);
+        if (Number.isFinite(v) && v > 0) { this.state.voltage = v / 10; this.state.voltageAt = e.at; }
+        break;
+      }
+      case 'carmanager.handbrake':
+        this.state.handbrake = truthy(e.extras.value);
+        break;
+      case 'com.microntek.acc':
+      case 'com.microntek.systemacc': {
+        const v = e.extras.state ?? e.extras.acc ?? e.extras.value;
+        if (v !== undefined) this.state.acc = truthy(v);
+        break;
+      }
+    }
+  }
+}

@@ -269,6 +269,7 @@ export class SimulatedDataSource implements DataSource {
         voltage: mk(round1(this.voltage)),
         now: Date.now(),
         isDaylight: this.daylightOverride ?? (hour >= 7 && hour < 19),
+        headlights: null,
         gpsFix: true,
         satellites: mk(11),
         wifi: true,

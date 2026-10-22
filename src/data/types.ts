@@ -63,6 +63,8 @@ export interface SystemData {
   /** ISO-ish wall clock, updated by the source */
   now: number;
   isDaylight: boolean;
+  /** head-unit headlight (ILLUMI) line; null = unit doesn't report it. AUTO theme prefers this. */
+  headlights: boolean | null;
   gpsFix: boolean;
   satellites: Signal<number>;
   wifi: boolean;

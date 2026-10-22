@@ -29,7 +29,9 @@ const FADE_STEPS = 60;
  * mode arriving at startup snaps (no fade on boot).
  */
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const isDaylight = useTelemetry((d) => d.system.isDaylight);
+  // AUTO: the headlight line wins when the unit reports it (CarPlay behaviour);
+  // lights OFF falls back to the clock so a dark driveway stays dark.
+  const isDaylight = useTelemetry((d) => d.system.headlights !== true && d.system.isDaylight);
   const [mode, setModeState] = useState<ThemeMode>('auto');
   const [loaded, setLoaded] = useState(false);
   // don't let the async load clobber a choice the user made during the load window
