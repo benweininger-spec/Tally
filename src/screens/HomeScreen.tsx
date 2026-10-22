@@ -10,6 +10,7 @@ import { BootSweep } from '../components/BootSweep';
 import { FacePager, type FaceDef } from './FacePager';
 import { HomeFace } from './faces/HomeFace';
 import { DriveFace } from './faces/DriveFace';
+import { EngineFace } from './faces/EngineFace';
 import { TrailFace } from './faces/TrailFace';
 import { NightFace } from './faces/NightFace';
 import { useTelemetry } from '../data/DataSourceProvider';
@@ -20,6 +21,7 @@ import { FACE_IDS, loadFace, saveFace, type FaceId } from '../data/settings';
 const FACES: FaceDef[] = [
   { id: 'home', Comp: HomeFace },
   { id: 'drive', Comp: DriveFace },
+  { id: 'engine', Comp: EngineFace },
   { id: 'trail', Comp: TrailFace },
   { id: 'night', Comp: NightFace },
 ];
@@ -175,7 +177,8 @@ const styles = StyleSheet.create({
   },
   dotHit: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center' },
   dot: { width: 10, height: 10, borderRadius: 5 },
-  faceName: { position: 'absolute', left: 1080, fontFamily: 'JetBrains Mono', fontSize: 12, letterSpacing: 3 },
+  // just right of the centred dot row (30-px hits, 8-px gaps), whatever the face count
+  faceName: { position: 'absolute', left: 1000 + (FACES.length * 38 - 8) / 2 + 14, fontFamily: 'JetBrains Mono', fontSize: 12, letterSpacing: 3 },
   // lives in the empty middle of the header bar, so it never covers an instrument
   suggest: {
     position: 'absolute',

@@ -28,6 +28,8 @@ export interface Theme {
   absent: string;
   /** warning / redline */
   warn: string;
+  /** cold-side gauge zone (coolant below operating temp) — the palette's one cool hue */
+  cold: string;
   fontDisplay: string; // big numerals
   fontMono: string; // labels, telemetry
   /** signature ring stroke multiplier (day thickens lines for sun) */
@@ -51,6 +53,7 @@ export const amberNight: Theme = {
   textFaint: '#9a7f54',
   absent: '#5a4a30',
   warn: '#F2403A',
+  cold: '#7FA8C9',
   fontDisplay: 'Oxanium',
   fontMono: 'JetBrains Mono',
   stroke: 1,
@@ -82,6 +85,7 @@ export const amberDay: Theme = {
   textFaint: '#6E5428',
   absent: '#B89C6A',
   warn: '#9B1C1C', // deep red still reads on light for redline
+  cold: '#2D5F86',
   fontDisplay: 'Oxanium',
   fontMono: 'JetBrains Mono',
   stroke: 1.2,

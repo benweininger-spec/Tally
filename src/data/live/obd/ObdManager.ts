@@ -2,7 +2,8 @@
  * ELM327 driver / scheduler. Owns the OBD link lifecycle, runs the AT init
  * handshake, discovers which PIDs the truck supports, then round-robin polls a
  * fast group (RPM/speed/throttle/MAF/load) and interleaves a slow group
- * (temps/fuel/voltage/baro/runtime), plus a rare DTC check.
+ * (temps/fuel/voltage/baro/runtime/fuel trims), plus a rare MIL / trouble-code check,
+ * Mode 03/04 code read + clear, and an EXPERIMENTAL one-time Toyota ATF-temp probe.
  *
  * Talks only to an injected `ObdTransport` and the pure `src/lib/elm327.ts`
  * parser — no Bluetooth library here. Every read decays to stale → absent on
@@ -10,13 +11,20 @@
  */
 import {
   AT_INIT,
+  DEFAULT_HEADER,
   PIDS,
+  TRANS_TEMP_PROBES,
   pidCommand,
   parseObdResponse,
+  parseResponse,
   classifyLine,
+  decodeDtcs,
   decodePidResponse,
   decodeMonitorStatus,
+  decodeProbe,
   decodeSupportMask,
+  isClearAck,
+  type RawProbe,
 } from '../../../lib/elm327';
 import type { ObdTransport } from './transport';
 
@@ -39,7 +47,22 @@ const SLOW = [
   PIDS.AMBIENT_TEMP,
   PIDS.OIL_TEMP,
   PIDS.RUNTIME,
+  PIDS.STFT_B1,
+  PIDS.LTFT_B1,
 ];
+
+const DTC_REREAD_MS = 60_000; // re-read codes at most once a minute while the MIL count > 0
+const PROBE_EVERY = 25; // ticks between experimental ATF-probe attempts (never blocks FAST)
+const TRANS_EVERY = 40; // ticks between ATF polls once a probe has answered
+
+/** A reply matcher: true when `frame` answers the in-flight command. */
+type Match = (frame: string) => boolean;
+
+export interface DtcState {
+  /** null = not read yet (or the ECU wasn't awake) — NOT the same as "no codes" */
+  codes: string[] | null;
+  at: number | null;
+}
 
 export class ObdManager {
   private transport: ObdTransport | null = null;
@@ -58,11 +81,21 @@ export class ObdManager {
   private slowIdx = 0;
   private tick = 0;
 
+  private codes: DtcState = { codes: null, at: null };
+  private codesReadAt = 0;
+  private ecuAwakeSeen = false;
+  // EXPERIMENTAL ATF-temp probe: tried once per connect, interleaved with polling
+  private probeIdx = 0;
+  private probeWinner: RawProbe | null = null;
+  private transC: Reading = { value: null, at: null };
+
   // serialized request/response
   private queue: Promise<unknown> = Promise.resolve();
-  private pending:
-    | { resolve: (s: string) => void; reject: (e: Error) => void; expectPid: number | null }
-    | null = null;
+  // multi-command sections that change the CAN header (ATF probe) or must reach the
+  // engine ECU (Mode 04 clear) — run one at a time so a CLEAR pressed mid-probe can't
+  // be sent to the TCM's 7E1 header
+  private section: Promise<unknown> = Promise.resolve();
+  private pending: { resolve: (s: string) => void; reject: (e: Error) => void; match: Match | null } | null = null;
   private pendingTimer: ReturnType<typeof setTimeout> | null = null;
   private unsubFrame: (() => void) | null = null;
   private unsubDisc: (() => void) | null = null;
@@ -124,17 +157,13 @@ export class ObdManager {
 
   private onFrame(frame: string) {
     if (!this.pending) return; // stray frame after timeout — ignore
-    const { expectPid } = this.pending;
+    const { match } = this.pending;
     // Correlate the frame with the command we're actually waiting for. A late frame
     // from a previously-timed-out command would otherwise resolve THIS request with
-    // stale data stamped fresh. For a PID command, only accept a frame that parses as
-    // that PID's response — OR a terminal status (NO DATA/error), so unsupported PIDs
-    // still resolve (to null) instead of hanging until timeout. AT commands
-    // (expectPid null) accept any frame.
-    if (expectPid != null) {
-      const matches = parseObdResponse(frame, expectPid) !== null;
-      if (!matches && !this.isTerminal(frame)) return; // stale/cross-PID late frame — keep waiting
-    }
+    // stale data stamped fresh. Only accept a frame that answers this command — OR a
+    // terminal status (NO DATA/error), so unsupported requests still resolve (to null)
+    // instead of hanging until timeout. AT commands (match null) accept any frame.
+    if (match && !match(frame) && !this.isTerminal(frame)) return; // stale/cross-command late frame
     if (this.pendingTimer) clearTimeout(this.pendingTimer);
     const p = this.pending;
     this.pending = null;
@@ -150,14 +179,19 @@ export class ObdManager {
   }
 
   /** Send one command and resolve with the complete response (delimited at '>').
-   *  `expectPid` is the Mode-01 PID this command should answer (null for AT/raw),
+   *  `expectPid` is the Mode-01 PID this command should answer (null for AT),
    *  used by onFrame to reject stale late frames. */
   private send(cmd: string, expectPid: number | null = null, timeout = this.cmdTimeoutMs): Promise<string> {
+    return this.sendRaw(cmd, expectPid == null ? null : (f) => parseObdResponse(f, expectPid) !== null, timeout);
+  }
+
+  /** Any-mode command: `match` recognises its reply (e.g. a 43 / 44 / 61 82 prefix). */
+  private sendRaw(cmd: string, match: Match | null, timeout = this.cmdTimeoutMs): Promise<string> {
     const run = (): Promise<string> =>
       new Promise<string>((resolve, reject) => {
         const t = this.transport;
         if (!t) return reject(new Error('no transport'));
-        this.pending = { resolve, reject, expectPid };
+        this.pending = { resolve, reject, match };
         this.pendingTimer = setTimeout(() => {
           this.pending = null;
           reject(new Error(`timeout: ${cmd}`));
@@ -172,6 +206,25 @@ export class ObdManager {
     const next = this.queue.then(run, run);
     this.queue = next.catch(() => undefined);
     return next;
+  }
+
+  /** Run `fn` exclusively against other sections (single commands still interleave). */
+  private exclusive<T>(fn: () => Promise<T>): Promise<T> {
+    const next = this.section.then(fn, fn);
+    this.section = next.catch(() => undefined);
+    return next;
+  }
+
+  /** Point requests back at the functional broadcast header; one retry. */
+  private async restoreHeader() {
+    for (let i = 0; i < 2; i++) {
+      try {
+        await this.send(`ATSH${DEFAULT_HEADER}`, null, 600);
+        return;
+      } catch {
+        /* retry once */
+      }
+    }
   }
 
   private async initialize() {
@@ -213,6 +266,18 @@ export class ObdManager {
       }
       if (this.tick % 200 === 0) await this.pollMonitor();
 
+      // the ECU is asleep with the key off (every PID: SEARCHING…STOPPED) — codes and the
+      // ATF probe only make sense once it has answered a FAST PID
+      if (!this.ecuAwakeSeen && this.latest.has(PIDS.RPM)) {
+        this.ecuAwakeSeen = true;
+        await this.readDtcs();
+      }
+      if (this.ecuAwakeSeen && this.tick % PROBE_EVERY === 0 && !this.probeWinner && this.probeIdx < TRANS_TEMP_PROBES.length) {
+        await this.probeTransTemp(TRANS_TEMP_PROBES[this.probeIdx++]);
+      } else if (this.probeWinner && this.tick % TRANS_EVERY === 0) {
+        await this.probeTransTemp(this.probeWinner);
+      }
+
       this.tick++;
       await sleep(5);
     }
@@ -235,10 +300,65 @@ export class ObdManager {
     try {
       const raw = await this.send(pidCommand(PIDS.MONITOR_STATUS), PIDS.MONITOR_STATUS);
       const ms = decodeMonitorStatus(raw);
-      if (ms) this.dtc = { count: ms.dtcCount, milOn: ms.milOn, at: Date.now() };
+      if (!ms) return;
+      this.dtc = { count: ms.dtcCount, milOn: ms.milOn, at: Date.now() };
+      if (ms.dtcCount === 0) this.codes = { codes: [], at: Date.now() };
+      else if (Date.now() - this.codesReadAt > DTC_REREAD_MS) await this.readDtcs();
     } catch {
       /* ignore */
     }
+  }
+
+  /** Mode 03: stored trouble codes. Leaves `codes` unknown if the ECU didn't answer. */
+  async readDtcs(): Promise<string[] | null> {
+    this.codesReadAt = Date.now();
+    try {
+      const raw = await this.sendRaw('03', (f) => parseResponse(f, [0x43]) !== null, 2000);
+      if (parseResponse(raw, [0x43]) !== null) {
+        this.codes = { codes: decodeDtcs(raw), at: Date.now() };
+      } else if (raw.split(/[\r\n]+/).some((l) => classifyLine(l) === 'no-data')) {
+        this.codes = { codes: [], at: Date.now() }; // some ECUs answer NO DATA for "none"
+      }
+    } catch {
+      /* timeout — keep whatever we knew */
+    }
+    return this.codes.codes;
+  }
+
+  /**
+   * Mode 04: clear stored codes and turn the MIL off, then re-read status + codes.
+   * UNTESTED ON THE TRUCK (key-on not tried yet). Many ECUs only accept it key-ON /
+   * engine-OFF; a refusal rejects with a readable message.
+   */
+  async clearDtcs(): Promise<void> {
+    if (!this.connected) throw new Error('OBD not connected');
+    await this.exclusive(async () => {
+      await this.restoreHeader(); // belt and braces: Mode 04 must go to 7DF, never a module header
+      const raw = await this.sendRaw('04', (f) => parseResponse(f, [0x44]) !== null, 5000);
+      if (!isClearAck(raw)) throw new Error('ECU did not accept the clear (try key ON, engine OFF)');
+      // re-read inside the section too, so a probe can't retarget Mode 01/03 to the TCM
+      await this.pollMonitor();
+      await this.readDtcs();
+    });
+  }
+
+  /** One EXPERIMENTAL ATF-temp attempt: set the TCM header, ask, restore 7DF. */
+  private probeTransTemp(p: RawProbe) {
+    return this.exclusive(async () => {
+      try {
+        await this.send(`ATSH${p.header}`, null, 600);
+        const raw = await this.sendRaw(p.cmd, (f) => parseResponse(f, p.prefix) !== null, 600);
+        const c = decodeProbe(p, raw);
+        if (c != null) {
+          this.probeWinner = p;
+          this.transC = { value: c, at: Date.now() };
+        }
+      } catch {
+        /* no answer from this candidate */
+      } finally {
+        await this.restoreHeader();
+      }
+    });
   }
 
   // ---- reads for LiveDataSource ---------------------------------------------
@@ -251,5 +371,16 @@ export class ObdManager {
   }
   get milOn(): boolean {
     return this.dtc.milOn;
+  }
+  get dtcCodes(): DtcState {
+    return this.codes;
+  }
+  /** EXPERIMENTAL Toyota ATF temperature (°C); absent until a probe answers */
+  get transTempC(): Reading {
+    return this.transC;
+  }
+  /** which ATF probe answered (for the UI's EXPERIMENTAL note), or null */
+  get transProbeId(): string | null {
+    return this.probeWinner?.id ?? null;
   }
 }

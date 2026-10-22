@@ -87,6 +87,27 @@ runtime. Web still runs the sim with zero hardware; live mode is native-only.
     90 s speed/RPM ring, fed via `useTelemetryListener` — no renders); `src/components/viz/VizSurface`
     = declare styled layers once, push path strings per frame; Skia on device, SVG on web/fallback.
   - New theme token `accentAlt` (the studies' second color: envelope, up-vector, RPM track).
+- ✅ **ENGINE face + long-term MPG** (spec `docs/PLAN-engine-page.md`; faces now
+  Home · Drive · **Engine** · Trail · Night). Screenshots: `docs/device/engine-face-{light,dark}.png`.
+  - **Face** (`src/screens/faces/EngineFace.tsx`, parts in `src/components/engine/*`): RPM hero
+    (segmented bar, redline 4,700) · coolant arc cold→normal→hot (new `cold` token) · LOAD /
+    THROTTLE · OIL; middle grid INTAKE · AMBIENT · MAP · BARO · FUEL · RUN TIME · ECU-vs-UNIT
+    volts · TRANS (EXPERIMENTAL) · STFT / LTFT ± bars (warn beyond ±10 %); right: FUEL ECONOMY
+    (instant / trip / lifetime, 30-day ridgeline with gaps, best/worst day, last 5 trips),
+    CHECK ENGINE (MIL lamp, codes + `describeDtc`, two-step CLEAR CODES, live-only), 0–60 /
+    EST HP / TORQUE. Every block renders complete when absent (checked with sim OBD OFF).
+  - **OBD layer** (`src/lib/elm327.ts`, `obd/ObdManager.ts`): PIDs 06/07 trims; CAN-aware Mode 03
+    decode (count byte, ISO-TP multi-frame, padding, per-ECU dedupe), read once the ECU wakes and
+    re-read ≤ 60 s when the monitor reports codes; Mode 04 `clearDtcs()`; EXPERIMENTAL Toyota ATF
+    probe (header 7E1: `2182` / `220182` / `221E1C`, plausibility −30…160 °C, first answer wins,
+    then polled every 40 ticks). Header-changing probe and the clear run in mutually exclusive
+    sections so a clear can never go to the TCM. New signals: `obd.{milOn, dtcCodes, stftPct,
+    ltftPct, mapKpa, ecuVolts, transTempF}`, `trip.fuelGallons`, `system.unitVoltage`.
+  - **MPG log** (`src/lib/mpgLog.ts` pure + `src/data/mpgLogStore.tsx`): daily buckets (400) +
+    trips (200, end after 10 min < 1 mph), persisted (`tacoma-dash:mpgLog`, 30 s debounce, now on
+    trip end). Only miles with OBD fuel flow are *scored*; non-OBD miles are stored but never
+    dilute the mpg. Sim uses a separate, never-persisted synthetic 30-day log.
+  - `src/lib/dtcDescriptions.ts`: ~94 common 2TR-FE / generic codes + family fallback.
 
 ## Run it
 
@@ -225,14 +246,18 @@ fallback.
   amberDay, altitude ribbon; open: source-swap "level up", drive-history ridgeline).** Skia port of PulseTach + full-motion reactive
   background; boot self-test sweep; source-swap "level up"; tile micro-interactions;
   30s day→night crossfade; **sunlight (`amberDay`) hardening**; drive-history
-  ridgeline; altitude + grade ribbon. OBD (M3) validation once the vLinker is paired.
+  ridgeline; altitude + grade ribbon. **OBD (M3): ENGINE face built** (trims, codes read +
+  clear, ATF probe, long-term MPG — see Current state); what's left is *validation on the
+  truck with the key on*: Mode 04 clear, which ATF probe (if any) answers, the real Mode 03
+  frame format, and MAF-derived gallons vs the pump.
 
 ### Perf model (post-audit, 2026-06 — every new surface MUST follow it)
 `DataSourceProvider` exposes a stable controls context + a subscribe-based telemetry
 store; widgets are `React.memo` + `useTelemetry(selector)` and wake only when their
 slice changes. PulseTach runs its own ~25fps loop with an idle-skip. Data tick is 20fps.
 Result: idle rendering 29fps→~1.5fps, CPU 203%→~55%. Don't put fast data in context
-and don't add continuous motion without Skia.
+and don't add continuous motion without Skia. Slow derived state (the MPG log) lives in its
+own store fed by a non-rendering listener; `useMpgLog(selector)` notifies ≤ 1 Hz.
 **Skia (2026-10):** per-frame motion goes through Reanimated shared values into Skia
 props (PulseTach writes path strings from its loop; Skia's `processPath` worklet builds
 the SkPaths on the UI thread) — zero React renders per frame. Text stays in RN `Text`

@@ -55,11 +55,20 @@ export interface TripData {
   distanceMi: Signal<number>;
   movingTimeSec: Signal<number>;
   avgSpeedMph: Signal<number>;
+  /**
+   * Fuel burned this session (gallons), integrated from MAF while OBD is connected
+   * (live: the FuelAccum; sim: synthetic from instant MPG). Absent without OBD — the
+   * long-term MPG log only scores miles that have gallons against them.
+   */
+  fuelGallons: Signal<number>;
 }
 
 export interface SystemData {
   /** unit input voltage — close to battery, self-measured (not CAN) */
   voltage: Signal<number>;
+  /** the head unit's OWN 12 V input (CarManager), never merged with OBD — the
+   *  ENGINE face shows it beside the ECU voltage (battery vs alternator) */
+  unitVoltage: Signal<number>;
   /** ISO-ish wall clock, updated by the source */
   now: number;
   isDaylight: boolean;
@@ -113,10 +122,22 @@ export interface ObdData {
   estHp: Signal<number>;
   estTorqueLbFt: Signal<number>;
   dtcCount: Signal<number>;
+  /** check-engine lamp (PID 01 bit 7); false while unknown */
+  milOn: boolean;
+  /** stored trouble codes (Mode 03), e.g. ["P0420"]; absent until read */
+  dtcCodes: Signal<string[]>;
+  /** short / long term fuel trim, bank 1 (%; + = ECU adding fuel) */
+  stftPct: Signal<number>;
+  ltftPct: Signal<number>;
+  /** intake manifold absolute pressure (kPa) */
+  mapKpa: Signal<number>;
+  /** ECU control-module voltage (PID 42) — alternator output with the engine running */
+  ecuVolts: Signal<number>;
+  /** EXPERIMENTAL Toyota ATF temperature (°F) — absent unless a probe answered */
+  transTempF: Signal<number>;
   /**
-   * Last completed 0–60 mph time (s). OPTIONAL + absent by default: it only holds
-   * a value briefly after a run, and no milestone-1 component renders it yet. The
-   * live source computes it (GPS-armed) so it's plumbed when a future face shows it.
+   * Last completed 0–60 mph time (s). OPTIONAL + absent by default (live: GPS-armed,
+   * holds a value after a run). Rendered by the ENGINE face's 0–60 tile.
    */
   zeroToSixtySec?: Signal<number>;
 }

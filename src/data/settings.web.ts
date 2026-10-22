@@ -11,8 +11,8 @@ import type { DockTile } from '../dock/defaults';
 
 export type SourceMode = 'sim' | 'live';
 export type ThemeMode = 'light' | 'auto' | 'dark';
-export type FaceId = 'home' | 'drive' | 'trail' | 'night';
-export const FACE_IDS: FaceId[] = ['home', 'drive', 'trail', 'night'];
+export type FaceId = 'home' | 'drive' | 'engine' | 'trail' | 'night';
+export const FACE_IDS: FaceId[] = ['home', 'drive', 'engine', 'trail', 'night'];
 /** NIGHT face hero: the original minimal ring, the speed-record disc, or the G-Scope. */
 export type NightStyle = 'ring' | 'record' | 'scope';
 const NIGHT_STYLES: NightStyle[] = ['ring', 'record', 'scope'];
@@ -25,6 +25,7 @@ const KEY_DOCK = 'tacoma-dash:dock';
 const KEY_FACE = 'tacoma-dash:face';
 const KEY_MOTION = 'tacoma-dash:reducedMotion';
 const KEY_NIGHT = 'tacoma-dash:nightStyle';
+const KEY_MPG_LOG = 'tacoma-dash:mpgLog';
 
 const ls = (): Storage | null => {
   try {
@@ -101,4 +102,18 @@ export async function loadNightStyle(): Promise<NightStyle> {
 
 export async function saveNightStyle(style: NightStyle): Promise<void> {
   ls()?.setItem(KEY_NIGHT, style);
+}
+
+/** Long-term MPG log (src/lib/mpgLog.ts shape); normalised by the caller. */
+export async function loadMpgLogRaw(): Promise<unknown> {
+  try {
+    const v = ls()?.getItem(KEY_MPG_LOG);
+    return v ? JSON.parse(v) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveMpgLogRaw(log: unknown): Promise<void> {
+  ls()?.setItem(KEY_MPG_LOG, JSON.stringify(log));
 }

@@ -78,6 +78,8 @@ export interface LiveControls {
   /** the unit's FM/AM tuner session, when it publishes one */
   getRadio(): Promise<NowPlaying | null>;
   radioSeek(dir: 1 | -1): void;
+  /** Mode 04: clear trouble codes + MIL (UNTESTED on the truck; key ON, engine OFF) */
+  clearDtcs(): Promise<void>;
 }
 
 interface SimOptsCompat {
@@ -278,6 +280,8 @@ export class LiveDataSource implements DataSource, LiveControls {
         distanceMi: this.fresh(gpsR(round1(loc.distanceMi), loc.lastFixAt), now),
         movingTimeSec: this.fresh(gpsR(round(loc.movingTimeSec), loc.lastFixAt), now),
         avgSpeedMph: this.fresh(gpsR(round(loc.avgSpeedMph), loc.lastFixAt), now),
+        // MAF-integrated gallons (FuelAccum) — only meaningful while OBD feeds it
+        fuelGallons: obdUp ? live(Math.round(this.fuel.gallons * 1000) / 1000, now) : absent<number>(),
       },
       system: {
         // 12V: OBD control-module voltage (PID 42) when the dongle has it, else the
@@ -286,6 +290,10 @@ export class LiveDataSource implements DataSource, LiveControls {
         voltage: (() => {
           const fromObd = obdNum(obd?.read(PIDS.CTRL_VOLTAGE) ?? { value: null, at: null }, round1);
           if (fromObd.status === 'live') return fromObd;
+          const mtc = this.mtc.getSnapshot();
+          return this.fresh({ value: mtc.voltage, at: mtc.voltageAt }, now, round1, 15000, 60000);
+        })(),
+        unitVoltage: (() => {
           const mtc = this.mtc.getSnapshot();
           return this.fresh({ value: mtc.voltage, at: mtc.voltageAt }, now, round1, 15000, 60000);
         })(),
@@ -319,6 +327,19 @@ export class LiveDataSource implements DataSource, LiveControls {
         estHp: obdUp && hp != null ? live(round(hp), now) : absent<number>(),
         estTorqueLbFt: obdUp && torque != null ? live(round(torque), now) : absent<number>(),
         dtcCount: obdUp ? this.fresh(obd!.dtcCount, now, round, 15000, 60000) : absent<number>(),
+        milOn: obdUp && !!obd?.milOn,
+        dtcCodes: (() => {
+          const c = obd?.dtcCodes;
+          return obdUp && c && c.codes && c.at ? live(c.codes, c.at) : absent<string[]>();
+        })(),
+        stftPct: obdNum(obd?.read(PIDS.STFT_B1) ?? { value: null, at: null }, round1),
+        ltftPct: obdNum(obd?.read(PIDS.LTFT_B1) ?? { value: null, at: null }, round1),
+        mapKpa: obdNum(obd?.read(PIDS.MAP) ?? { value: null, at: null }, round),
+        ecuVolts: obdNum(obd?.read(PIDS.CTRL_VOLTAGE) ?? { value: null, at: null }, round1),
+        // EXPERIMENTAL: polled rarely (every ~40 ticks), so allow it to stay live longer
+        transTempF: obdUp
+          ? this.fresh(obd!.transTempC, now, (c) => round(celsiusToFahrenheit(c)), 60000, 180000)
+          : absent<number>(),
         zeroToSixtySec: zsResult != null ? live(round1(zsResult), now) : absent<number>(),
       },
       body: {
@@ -378,6 +399,11 @@ export class LiveDataSource implements DataSource, LiveControls {
     this.obd?.disconnect();
     this.obd = null;
     this.fuel = initFuelAccum();
+  }
+
+  async clearDtcs(): Promise<void> {
+    if (!this.obd?.connected) throw new Error('OBD not connected');
+    await this.obd.clearDtcs();
   }
 
   hasMediaAccess(): boolean {

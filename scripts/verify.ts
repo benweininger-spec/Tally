@@ -44,7 +44,30 @@ import {
   decodeSupportMask,
   AT_INIT,
   PIDS,
+  TRANS_TEMP_PROBES,
+  decodeProbe,
+  isClearAck,
+  parseResponse,
+  responseMessages,
 } from '../src/lib/elm327.ts';
+import { describeDtc, DTC_DESCRIPTION_COUNT } from '../src/lib/dtcDescriptions.ts';
+import {
+  addDelta,
+  bestWorstDay,
+  dateKey,
+  emptyLog,
+  last30,
+  lifetimeMpg,
+  MAX_DAYS,
+  mpgOf,
+  normalizeLog,
+  runs,
+  syntheticLog,
+  tripEnd,
+  tripMpg,
+  tripStart,
+  tripUpdate,
+} from '../src/lib/mpgLog.ts';
 import {
   instantMpg,
   gallonsPerHour,
@@ -285,6 +308,81 @@ console.log('\nELM327 PARSER (src/lib/elm327.ts)');
 
   const sup = decodeSupportMask('41 00 80 00 00 00', 0x00);
   ok(sup.length === 1 && sup[0] === 0x01, 'support mask bit31 -> PID 0x01');
+}
+
+console.log('\nENGINE DATA — trims, trouble codes, ATF probe (src/lib/elm327.ts, dtcDescriptions.ts)');
+{
+  ok(decodePidResponse(PIDS.STFT_B1, '41 06 80') === 0, 'STFT 0x80 = 0 %');
+  ok(approx(decodePidResponse(PIDS.STFT_B1, '41 06 8A'), 7.8125, 1e-9), 'STFT 0x8A = +7.8 % (adding fuel)');
+  ok(approx(decodePidResponse(PIDS.LTFT_B1, '41 07 70'), -12.5, 1e-9), 'LTFT 0x70 = −12.5 % (pulling fuel)');
+  ok(decodePidResponse(PIDS.LTFT_B1, '41 07 00') === -100 && approx(decodePidResponse(PIDS.LTFT_B1, '41 07 FF'), 99.21875, 1e-9), 'trim range −100 … +99.2 %');
+
+  ok(decodeDtcs('43 01 33 00 00 00 00').join() === 'P0133', 'legacy Mode 03: padding 0000 skipped');
+  ok(decodeDtcs('43 01 01 33').join() === 'P0133', 'CAN Mode 03: count byte first (43 01 01 33 = P0133, not P0101)');
+  ok(decodeDtcs('43 00').length === 0, 'CAN Mode 03: zero codes');
+  ok(decodeDtcs('43 02 04 20 01 71').join() === 'P0420,P0171', 'CAN Mode 03: two codes');
+  const multi = '00A\r0: 43 04 01 33 04 20\r1: 01 71 03 00 55 55 55\r\r>';
+  ok(decodeDtcs(multi).join() === 'P0133,P0420,P0171,P0300', `ISO-TP multi-frame reassembled + padding trimmed (${decodeDtcs(multi).join()})`);
+  ok(decodeDtcs('43 01 04 20\r43 01 07 41\r').join() === 'P0420,P0741', 'two ECUs (engine + trans) each answer');
+  ok(decodeDtcs('43 01 C1 23 00 00 00 00').join() === 'U0123' && decodeDtcs('43 01 81 23').join() === 'B0123', 'letter bits: C/B/U families');
+  ok(decodeDtcs('NO DATA').length === 0 && decodeDtcs('SEARCHING...\rSTOPPED').length === 0, 'NO DATA / STOPPED → no codes, no crash');
+  ok(responseMessages('00A\r0: 43 04 01 33 04 20\r1: 01 71 03 00 55 55 55').length === 1, 'multi-frame = one message');
+  ok(isClearAck('44') && isClearAck('44\r\r>') && !isClearAck('7F 04 22') && !isClearAck('NO DATA'), 'Mode 04 ack (44) vs refusal (7F 04 22)');
+  ok(parseResponse('61 82 6E 00', [0x61, 0x82])?.[0] === 0x6e, 'generic prefix parser (Mode 21)');
+
+  const p0 = TRANS_TEMP_PROBES[0];
+  ok(decodeProbe(p0, '61 82 82 00') === 90, 'ATF probe: A − 40 °C (0x82 → 90 °C)');
+  ok(decodeProbe(p0, '61 82 FF') === null, 'ATF probe rejects implausible values (215 °C)');
+  ok(decodeProbe(p0, 'NO DATA') === null && decodeProbe(p0, '7F 21 11') === null, 'ATF probe: no answer / not supported → null');
+
+  ok(describeDtc('P0420') === 'Catalyst efficiency below threshold (bank 1)', 'describeDtc exact (P0420)');
+  ok(describeDtc('p0171').startsWith('System too lean'), 'describeDtc is case-insensitive');
+  ok(describeDtc('P0399').startsWith('Ignition system or misfire'), 'describeDtc family fallback (P03xx)');
+  ok(describeDtc('P1999').startsWith('Manufacturer-specific') && describeDtc('U0999').startsWith('Network'), 'describeDtc: P1 / U families');
+  ok(describeDtc('XYZ') === 'Unrecognised code', 'describeDtc rejects garbage');
+  ok(DTC_DESCRIPTION_COUNT >= 60, `≥ 60 described codes (${DTC_DESCRIPTION_COUNT})`);
+}
+
+console.log('\nLONG-TERM MPG (src/lib/mpgLog.ts)');
+{
+  ok(mpgOf(0, 0) === null && mpgOf(10, 0) === null && mpgOf(0.2, 0.01) === null, 'mpgOf never divides by zero / scores < 0.5 mi');
+  ok(approx(mpgOf(20, 1), 20, 1e-12), 'mpgOf = miles / gallons');
+  const log = emptyLog();
+  addDelta(log, '2026-10-20', 10, 0.5, true);
+  addDelta(log, '2026-10-20', 5, 0, false); // OBD off: miles stored, not scored
+  addDelta(log, '2026-10-21', 30, 2, true); // 15 mpg
+  addDelta(log, '2026-10-19', 2, 0, false); // out-of-order day lands in order
+  ok(log.days.map((d) => d.date).join() === '2026-10-19,2026-10-20,2026-10-21', 'day buckets merge + stay sorted');
+  ok(log.days[1].miles === 15 && log.days[1].fuelMiles === 10, 'miles without fuel are stored but not scored');
+  ok(approx(lifetimeMpg(log), 40 / 2.5, 1e-9), `lifetime = scored miles / gallons (${lifetimeMpg(log)})`);
+  ok(lifetimeMpg(emptyLog()) === null, 'lifetime null with no fuel');
+  const bw = bestWorstDay(log);
+  ok(bw.best?.date === '2026-10-20' && bw.worst?.date === '2026-10-21' && bw.best!.mpg === 20 && bw.worst!.mpg === 15, 'best / worst day');
+  const today = new Date(2026, 9, 21, 12).getTime();
+  const l30 = last30(log, today);
+  ok(l30.length === 30 && l30[29].date === '2026-10-21' && l30[0].date === '2026-09-22', 'last30 spans 30 calendar days ending today');
+  ok(approx(l30[29].mpg, 15, 1e-9) && approx(l30[28].mpg, 20, 1e-9) && l30[27].mpg === null, 'last30: mpg per day, null for no-fuel days');
+  ok(dateKey(new Date(2026, 0, 5, 23, 59).getTime()) === '2026-01-05', 'dateKey is local YYYY-MM-DD');
+  ok(runs([null, 1, 2, null, null, 3, null, 4]).join('|') === '1,2|5,5|7,7', 'ridgeline runs gap on nulls');
+
+  tripStart(log, 1000);
+  tripUpdate(log, 12, 0.6, true);
+  tripUpdate(log, 3, 0, false);
+  tripEnd(log, 5000);
+  ok(log.trips.length === 1 && log.current === null && approx(tripMpg(log.trips[0]), 20, 1e-9), 'trip start / update / end + trip mpg');
+  tripStart(log, 6000);
+  tripUpdate(log, 0.05, 0, false);
+  tripEnd(log, 7000);
+  ok(log.trips.length === 1, 'driveway-length trips are discarded');
+
+  const big = emptyLog();
+  for (let i = 0; i < MAX_DAYS + 20; i++) addDelta(big, dateKey(new Date(2025, 0, 1 + i).getTime()), 1, 0.05, true);
+  ok(big.days.length === MAX_DAYS && big.days[0].date === dateKey(new Date(2025, 0, 21).getTime()), `capped at ${MAX_DAYS} days (oldest dropped)`);
+  const round = normalizeLog(JSON.parse(JSON.stringify(log)));
+  ok(round.days.length === 3 && round.trips.length === 1, 'persist round-trip');
+  ok(normalizeLog({ days: [{ date: 'bad' }, { date: '2026-01-01', miles: -5, gallons: NaN }] }).days[0].miles === 0, 'normalizeLog drops / sanitises junk');
+  const syn = syntheticLog(today);
+  ok(last30(syn, today).filter((d) => d.mpg != null).length >= 15 && syn.trips.length === 5, 'sim preview log fills the 30-day ridgeline');
 }
 
 console.log('\nDERIVED METRICS (src/lib/derive.ts)');

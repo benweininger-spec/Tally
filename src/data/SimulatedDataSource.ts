@@ -61,6 +61,8 @@ export class SimulatedDataSource implements DataSource {
   private trip = 128.6;
   private movingSec = 12250;
   private voltage = 14.2;
+  private gallons = 0; // MAF-style fuel burned while "OBD" is connected
+  private transTemp = 150; // °F, warms toward ~175 while driving
 
   // discrete
   private trackIndex = 0;
@@ -179,6 +181,12 @@ export class SimulatedDataSource implements DataSource {
 
     // trip + electrical
     this.trip += (this.speed * dt) / 3600;
+    if (this.opts.obdConnected) {
+      // fuel: miles / instant mpg while moving, ~0.25 gal/h at idle
+      const dMi = (this.speed * dt) / 3600;
+      this.gallons += this.speed >= 1 ? dMi / this.simInstantMpg() : (0.25 * dt) / 3600;
+    }
+    this.transTemp += ((150 + this.speed * 0.4) - this.transTemp) * dt * 0.02;
 
     // terrain follows distance; pitch leans toward the road grade (plus body motion)
     this.altitude = this.terrainAt(this.trip) + (this.rnd() - 0.5) * 0.6;
@@ -216,6 +224,10 @@ export class SimulatedDataSource implements DataSource {
 
   getSnapshot(): DashboardData {
     return this.snapshot();
+  }
+
+  private simInstantMpg(): number {
+    return clamp(60 - this.speed * 0.4 - Math.max(0, this.longG) * 30, 4, 55);
   }
 
   // ---- derive an OBD view from physical state (when "connected") ----
@@ -264,9 +276,11 @@ export class SimulatedDataSource implements DataSource {
         distanceMi: mk(round1(this.trip)),
         movingTimeSec: mk(Math.round(this.movingSec)),
         avgSpeedMph: mk(Math.round((this.trip / (this.movingSec / 3600)) || 0)),
+        fuelGallons: obd ? mk(Math.round(this.gallons * 1000) / 1000) : no(),
       },
       system: {
         voltage: mk(round1(this.voltage)),
+        unitVoltage: mk(round1(this.voltage - 0.3)), // the head unit sees a bit less than the alternator
         now: Date.now(),
         isDaylight: this.daylightOverride ?? (hour >= 7 && hour < 19),
         headlights: null,
@@ -290,15 +304,23 @@ export class SimulatedDataSource implements DataSource {
         oilTempF: obd ? mk(210) : no(),
         ambientTempF: obd ? mk(79) : no(),
         fuelLevelPct: obd ? mk(64) : no(),
-        instantMpg: obd ? mk(round1(clamp(60 - this.speed * 0.4 - Math.max(0, this.longG) * 30, 4, 55))) : no(),
+        instantMpg: obd ? mk(round1(this.simInstantMpg())) : no(),
         avgMpg: obd ? mk(21.3) : no(),
         runTimeSec: obd ? mk(this.movingSec) : no(),
         baroKpa: obd ? mk(98) : no(),
         estHp: obd ? mk(Math.round((rpm / 5200) * 159 * (load / 100))) : no(),
         estTorqueLbFt: obd ? mk(Math.round(180 * (load / 100))) : no(),
-        dtcCount: obd ? mk(0) : no(),
-        // optional field — sim leaves it absent (a 0–60 only exists right after a run)
-        zeroToSixtySec: no(),
+        // one demo code so the CHECK ENGINE card shows its populated state in the preview
+        dtcCount: obd ? mk(1) : no(),
+        milOn: obd,
+        dtcCodes: obd ? mk(['P0420']) : no(),
+        stftPct: obd ? mk(round1(4 * Math.sin(this.frame / 37) + (this.rnd() - 0.5))) : no(),
+        ltftPct: obd ? mk(2.3) : no(),
+        mapKpa: obd ? mk(Math.round(28 + load * 0.7)) : no(),
+        ecuVolts: obd ? mk(round1(this.voltage)) : no(),
+        transTempF: obd ? mk(Math.round(this.transTemp)) : no(),
+        // a believable last run so the ENGINE face's 0–60 tile is lit in the preview
+        zeroToSixtySec: obd ? mk(9.4) : no(),
       },
       body: {
         supported: false,

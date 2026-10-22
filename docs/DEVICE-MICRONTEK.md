@@ -65,3 +65,18 @@ bitpit, altergames, launcher3.
 hidden_api_policy 1`, or (what `MtcEventsModule` does) the VMRuntime
 `setHiddenApiExemptions(["L"])` meta-reflection trick before touching it. Verified:
 battery events arrive ~1/s as `{type:"battery", value:125}` → 12.5 V.
+
+## OBD — what the ENGINE face assumes (UNVERIFIED — needs key ON)
+No new device facts this round (built and checked in sim only; nothing installed). These are the
+assumptions the code makes, to confirm or correct on the truck:
+- **Mode 03 format.** The 2TR-FE ECM on CAN (ISO 15765) should answer `43 <count> <hi lo>…`;
+  `decodeDtcs` also accepts the legacy un-counted form, ISO-TP multi-frame (`00A` / `0:` / `1:`),
+  `00 00` padding and replies from several ECUs. Capture a real reply with codes present.
+- **Mode 04 clear.** Expected to need key ON / engine OFF; a refusal (`7F 04 xx`) surfaces in the
+  CHECK ENGINE card as "ECU did not accept the clear". Clears the MIL **and** readiness monitors.
+- **ATF temperature (EXPERIMENTAL).** Probes, one every ~25 loop ticks once the ECU is awake, each
+  with `ATSH7E1` then restored to `ATSH7DF`: `21 82` (reply `61 82 A`), `22 01 82` (`62 01 82 A`),
+  `22 1E 1C` (`62 1E 1C A`); °C = A − 40, accepted only in −30…160 °C. The TRANS FLUID tile
+  reads "EXPERIMENTAL · NO ANSWER" if none answers. A dongle that ignores `ATSH` will just fail
+  all three.
+- **Gallons** are MAF-derived (stoich 14.7, gasoline 6.17 lb/gal) — compare a tank against the pump.

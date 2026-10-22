@@ -76,10 +76,16 @@ function useCrossfade(target: Theme, ready: boolean, tappedAt: React.MutableRefO
   const shownRef = useRef(shown);
   shownRef.current = shown;
   const anim = useRef(new Animated.Value(1)).current;
+  const booted = useRef(false);
 
   useEffect(() => {
+    // the stored mode and `ready` land in the same render, so "first render after
+    // ready" still counts as boot — otherwise a stored LIGHT/DARK fades in over the
+    // slow sun crossfade instead of snapping
+    const boot = !booted.current;
+    if (ready) booted.current = true;
     if (target === shownRef.current) return;
-    if (!ready) {
+    if (!ready || boot) {
       setShown(target); // initial / stored-mode resolution: no fade on boot
       return;
     }

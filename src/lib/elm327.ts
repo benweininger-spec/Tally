@@ -125,6 +125,8 @@ const AB = (b: number[]) => b[0] * 256 + b[1];
 export const PIDS = {
   ENGINE_LOAD: 0x04,
   COOLANT_TEMP: 0x05,
+  STFT_B1: 0x06,
+  LTFT_B1: 0x07,
   MAP: 0x0b,
   RPM: 0x0c,
   SPEED: 0x0d,
@@ -143,6 +145,9 @@ export const PIDS = {
 export const PID_DEFS: Readonly<Record<number, PidDef>> = {
   0x04: { pid: 0x04, name: 'engineLoad', bytes: 1, unit: '%', decode: (b) => A(b) / 2.55 },
   0x05: { pid: 0x05, name: 'coolantTemp', bytes: 1, unit: '°C', decode: (b) => A(b) - 40 },
+  // fuel trims: 128 = 0 %, below = removing fuel (rich), above = adding fuel (lean)
+  0x06: { pid: 0x06, name: 'stftB1', bytes: 1, unit: '%', decode: (b) => ((A(b) - 128) * 100) / 128 },
+  0x07: { pid: 0x07, name: 'ltftB1', bytes: 1, unit: '%', decode: (b) => ((A(b) - 128) * 100) / 128 },
   0x0b: { pid: 0x0b, name: 'map', bytes: 1, unit: 'kPa', decode: (b) => A(b) },
   0x0c: { pid: 0x0c, name: 'rpm', bytes: 2, unit: 'rpm', decode: (b) => AB(b) / 4 },
   0x0d: { pid: 0x0d, name: 'speed', bytes: 1, unit: 'km/h', decode: (b) => A(b) },
@@ -184,32 +189,131 @@ export function decodeMonitorStatus(raw: string): MonitorStatus | null {
   return { milOn: (a & 0x80) !== 0, dtcCount: a & 0x7f };
 }
 
+// ---- generic response framing (any mode) -------------------------------------
+/**
+ * Split a raw ELM327 response into MESSAGES of data bytes. Handles the two shapes
+ * headers-off (ATH0) output takes:
+ *   • one message per line (single-frame CAN, or legacy protocols / several ECUs);
+ *   • an ISO-TP multi-frame answer: a 3-hex-digit total-length line ("00A") followed
+ *     by "0:" "1:" … frames, reassembled into ONE message and trimmed to that length
+ *     (the last frame carries padding).
+ * Status lines (SEARCHING, NO DATA, …) are skipped.
+ */
+export function responseMessages(raw: string): number[][] {
+  const lines = raw.split(/[\r\n]+/).filter((l) => classifyLine(l) === 'data');
+  const msgs: number[][] = [];
+  let multi: number[] | null = null;
+  let multiLen = 0;
+  for (const line of lines) {
+    const c = cleanLine(line);
+    if (/^[0-9A-F]{3}$/.test(c)) {
+      // ISO-TP total-length header starts a reassembled message
+      if (multi) msgs.push(multi.slice(0, multiLen));
+      multi = [];
+      multiLen = parseInt(c, 16);
+      continue;
+    }
+    const framed = /^[0-9A-F]:/.test(c);
+    const bytes = hexBytes(c.replace(/^[0-9A-F]:/, ''));
+    if (!bytes.length) continue;
+    if (multi && framed) multi.push(...bytes);
+    else {
+      if (multi) {
+        msgs.push(multi.slice(0, multiLen));
+        multi = null;
+      }
+      msgs.push(bytes);
+    }
+  }
+  if (multi) msgs.push(multi.slice(0, multiLen));
+  return msgs;
+}
+
+/** Data bytes following `prefix` in the first message that starts with it (any mode), or null. */
+export function parseResponse(raw: string, prefix: readonly number[]): number[] | null {
+  for (const m of responseMessages(raw)) {
+    for (let i = 0; i + prefix.length <= m.length; i++) {
+      if (prefix.every((b, k) => m[i + k] === b)) return m.slice(i + prefix.length);
+    }
+  }
+  return null;
+}
+
 // ---- Mode 03 stored DTCs ----------------------------------------------------
 const DTC_LETTERS = ['P', 'C', 'B', 'U'] as const;
-/** Decode a Mode 03 response (prefix 0x43, then 2 bytes per code) to code strings. */
-export function decodeDtcs(raw: string): string[] {
-  const lines = raw.split(/[\r\n]+/);
-  let bytes: number[] = [];
-  for (const line of lines) {
-    if (classifyLine(line) !== 'data') continue;
-    const lb = hexBytes(cleanLine(line).replace(/^[0-9A-F]:/, ''));
-    if (lb.length) bytes = bytes.concat(lb);
+
+const dtcString = (hi: number, lo: number) =>
+  `${DTC_LETTERS[(hi & 0xc0) >> 6]}${(hi & 0x30) >> 4}${(hi & 0x0f).toString(16).toUpperCase()}${lo
+    .toString(16)
+    .toUpperCase()
+    .padStart(2, '0')}`;
+
+/**
+ * Decode a Mode 03 (stored) — or, with respByte 0x47, Mode 07 (pending) — response.
+ * Two wire formats exist and the 2016 Tacoma uses the FIRST:
+ *   • CAN / ISO 15765: `43 <count> <hi lo> × count` — e.g. "43 01 01 33" = P0133. An
+ *     odd body length (1 + 2·count) identifies it; multi-frame answers are reassembled.
+ *   • Legacy (J1850 / ISO 9141 / KWP): `43 <hi lo> × 3`, unused slots padded 00 00.
+ * Each ECU answers in its own message; codes are de-duplicated.
+ */
+export function decodeDtcs(raw: string, respByte = 0x43): string[] {
+  const out: string[] = [];
+  for (const m of responseMessages(raw)) {
+    const start = m.indexOf(respByte);
+    if (start < 0) continue;
+    let body = m.slice(start + 1);
+    if (body.length % 2 === 1) {
+      const count = body[0];
+      body = body.slice(1, 1 + count * 2); // CAN: count byte first
+    }
+    for (let i = 0; i + 1 < body.length; i += 2) {
+      if (body[i] === 0 && body[i + 1] === 0) continue; // padding = no code
+      const code = dtcString(body[i], body[i + 1]);
+      if (!out.includes(code)) out.push(code);
+    }
   }
-  const start = bytes.indexOf(0x43);
-  if (start < 0) return [];
-  const body = bytes.slice(start + 1);
-  const codes: string[] = [];
-  for (let i = 0; i + 1 < body.length; i += 2) {
-    const hi = body[i];
-    const lo = body[i + 1];
-    if (hi === 0 && lo === 0) continue; // padding = no code
-    const letter = DTC_LETTERS[(hi & 0xc0) >> 6];
-    const d1 = (hi & 0x30) >> 4;
-    const d2 = hi & 0x0f;
-    const d34 = lo.toString(16).toUpperCase().padStart(2, '0');
-    codes.push(`${letter}${d1}${d2.toString(16).toUpperCase()}${d34}`);
-  }
-  return codes;
+  return out;
+}
+
+/** Mode 04 (clear codes + MIL) answers 0x44 when the ECU accepted it. */
+export const isClearAck = (raw: string) => parseResponse(raw, [0x44]) !== null;
+
+// ---- EXPERIMENTAL: Toyota transmission (ATF) temperature -------------------
+/**
+ * EXPERIMENTAL — NOT VERIFIED ON THIS TRUCK. Toyota publishes no standard PID for ATF
+ * temperature; owners' scan-tool communities cite a few manufacturer requests to the
+ * transmission ECU (CAN header 7E1 → replies 7E9). Each candidate is tried ONCE on
+ * connect (after discovery, interleaved with normal polling); the first that returns a
+ * parseable, in-range value wins and is polled rarely after that. None answering → the
+ * reading stays absent. Every candidate uses Toyota's usual temperature encoding, A − 40
+ * °C, which is itself an assumption: check against a scan tool before trusting it.
+ */
+export interface RawProbe {
+  id: string;
+  /** CAN request header to set with ATSH before sending (restored to 7DF after) */
+  header: string;
+  cmd: string;
+  /** reply bytes preceding the data, e.g. 61 82 for request 21 82 */
+  prefix: readonly number[];
+  decode: (data: number[]) => number;
+}
+
+export const TRANS_TEMP_PROBES: readonly RawProbe[] = [
+  { id: 'tcm-21-82', header: '7E1', cmd: '2182', prefix: [0x61, 0x82], decode: (b) => b[0] - 40 },
+  { id: 'tcm-22-0182', header: '7E1', cmd: '220182', prefix: [0x62, 0x01, 0x82], decode: (b) => b[0] - 40 },
+  { id: 'tcm-22-1e1c', header: '7E1', cmd: '221E1C', prefix: [0x62, 0x1e, 0x1c], decode: (b) => b[0] - 40 },
+];
+
+/** Plausible ATF range (°C); anything outside means the candidate isn't ATF temp. */
+export const ATF_RANGE_C: readonly [number, number] = [-30, 160];
+export const DEFAULT_HEADER = '7DF';
+
+/** Decode a probe's raw reply to °C, or null if missing / malformed / implausible. */
+export function decodeProbe(p: RawProbe, raw: string): number | null {
+  const data = parseResponse(raw, p.prefix);
+  if (!data || data.length < 1) return null;
+  const v = p.decode(data);
+  return Number.isFinite(v) && v >= ATF_RANGE_C[0] && v <= ATF_RANGE_C[1] ? v : null;
 }
 
 // ---- PID-support bitmask (00 / 20 / 40 ...) --------------------------------

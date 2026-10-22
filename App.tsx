@@ -13,6 +13,7 @@ import { RadioProvider } from './src/radio/RadioProvider';
 import { SettingsUIProvider } from './src/settings/SettingsUI';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { DriveRecorderFeed } from './src/data/driveRecorder';
+import { MpgLogFeed } from './src/data/mpgLogStore';
 
 const FONT_LINK =
   'https://fonts.googleapis.com/css2?family=Oxanium:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap';
@@ -55,6 +56,8 @@ export default function App() {
                   <StatusBar hidden />
                   {/* always-on history for the Signal Library instruments (renders nothing) */}
                   <DriveRecorderFeed />
+                  {/* long-term MPG log: day buckets + trips, persisted (renders nothing) */}
+                  <MpgLogFeed />
                   <HomeScreen />
                 </SettingsUIProvider>
               </RadioProvider>
