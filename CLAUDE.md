@@ -131,9 +131,12 @@ source is missing — never an empty gauge. Full write-up: `docs/ARCHITECTURE.md
 - **OBD** talks to a swappable `ObdTransport` (Classic SPP now via
   `react-native-bluetooth-classic`; BLE droppable in later) — same philosophy one
   layer down. ELM327 init + fast/slow PID scheduler in `obd/ObdManager.ts`.
-- **Voltage divergence (intentional, per the live-data brief):** in *live* mode
-  `system.voltage` is `absent` until OBD control-module voltage (PID 42) — the unit's
-  12V input has no clean Android API and isn't on CAN. The *sim* still fills it (fake).
+- **Voltage:** live `system.voltage` = OBD PID 42 when the dongle has it, else the head
+  unit's own 12V input via `android.microntek.CarManager` ("battery", tenths of a volt —
+  `src/data/live/mtcProvider.ts`, `modules/mtc-events`). The old "no Android API" belief
+  was wrong; see `docs/DEVICE-MICRONTEK.md`.
+- **Headlights:** `system.headlights` (null = unit doesn't report) from the Microntek
+  `com.microntek.report.event` broadcast; **AUTO theme = headlights ON → night, else clock.**
 - **The swap rule still holds:** the live data drops in with **zero changes to how any
   widget reads/renders data** — components bind to `DashboardData` only. `types.ts`
   gained one *optional* `obd.zeroToSixtySec` signal (defaulted absent). UI *features*
@@ -242,6 +245,7 @@ frames in `dumpsys gfxinfo`, CPU < 60 % with the sim at speed.
 - `docs/design-brief.md` — the full brief (data tiers, constraints, CarPlay boundary).
 - `docs/DECISIONS.md` — design decision log + rationale from the kickoff session.
 - `docs/ARCHITECTURE.md` — the data-source abstraction in detail.
+- `docs/DEVICE-MICRONTEK.md` — **verified head-unit facts**: headlight broadcast, CarManager voltage, cameras (launch-only), radio session, OBD, adb quirks.
 - `docs/M2-LIVE-BUILD.md` — **how to build the dev client, ADB-sideload to the
   Dasaita (incl. the `adbon` unlock), and bring up each live tier.**
 - `docs/PROMPT-live-data.md` — the M2 spec this live-data work implements.
