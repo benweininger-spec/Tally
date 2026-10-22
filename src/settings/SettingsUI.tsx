@@ -142,11 +142,12 @@ function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => 
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.scrim} onPress={onClose}>
-        <Pressable
-          style={[styles.sheet, { backgroundColor: t.bg, borderColor: t.panelBorder }]}
-          onPress={(e) => e.stopPropagation()}
-        >
+      {/* No Pressable may sit ABOVE the ScrollView in the touch chain: on the unit a
+          real finger-drag was being swallowed as a tap (FACT, 2026-10-21). The scrim
+          tap-to-close is a sibling underneath the sheet, and the sheet is a plain View. */}
+      <View style={styles.scrim}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View style={[styles.sheet, { backgroundColor: t.bg, borderColor: t.panelBorder }]}>
           <View style={styles.headerRow}>
             <Text style={[styles.title, { color: t.accent }]}>SETTINGS</Text>
             <Press hitSlop={16} onPress={onClose}>
@@ -154,7 +155,7 @@ function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => 
             </Press>
           </View>
 
-          <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ gap: 18 }}>
+          <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ gap: 18 }} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
             {/* system quick controls first — the thing reached for most while driving */}
             <Section t={t} title="QUICK CONTROLS">
               <QuickControls t={t} visible={visible} />
@@ -393,8 +394,8 @@ function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => 
 
             {note && <Text style={[styles.note, { color: t.text }]}>{note}</Text>}
           </ScrollView>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }

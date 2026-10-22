@@ -17,6 +17,7 @@ import {
   openWifiSettings,
   requestWriteSettings,
   setBrightness,
+  setFontScale,
   setScreenTimeout,
   setVolume,
   sysControlsAvailable,
@@ -25,6 +26,12 @@ import {
 import { Slider } from '../components/ui/Slider';
 import { Btn } from './parts';
 import type { Theme } from '../theme/themes';
+
+const TEXT_SIZES: { label: string; scale: number }[] = [
+  { label: 'NORMAL', scale: 1.0 },
+  { label: 'LARGE', scale: 1.15 },
+  { label: 'X-LARGE', scale: 1.3 },
+];
 
 const TIMEOUTS: { label: string; ms: number }[] = [
   { label: '1 MIN', ms: 60_000 },
@@ -115,6 +122,35 @@ export function QuickControls({ t, visible }: { t: Theme; visible: boolean }) {
 
       <RadioRow t={t} label="BLUETOOTH" on={avail ? s!.bluetoothOn : null} disabled={!avail} onOpen={() => void openBluetoothSettings().catch(() => {})} />
       <RadioRow t={t} label="WI-FI" on={avail ? s!.wifiOn : null} disabled={!avail} onOpen={() => void openWifiSettings().catch(() => {})} />
+
+      <Text style={[styles.rowLabel, { color: t.text, marginTop: 4 }]}>TEXT SIZE</Text>
+      <View style={styles.chips}>
+        {TEXT_SIZES.map((o) => {
+          const active = avail && Math.abs((s!.fontScale ?? 1) - o.scale) < 0.03;
+          return (
+            <Press
+              key={o.label}
+              disabled={!canWrite}
+              onPress={() =>
+                guard(() => {
+                  setFontScale(o.scale);
+                  setS((cur) => (cur ? { ...cur, fontScale: o.scale } : cur));
+                })
+              }
+              style={[
+                styles.chip,
+                {
+                  borderColor: active ? t.accent : t.panelBorder,
+                  backgroundColor: active ? t.panel : 'transparent',
+                  opacity: canWrite ? 1 : 0.4,
+                },
+              ]}
+            >
+              <Text style={[styles.chipText, { color: active ? t.accent : t.textDim }]}>{o.label}</Text>
+            </Press>
+          );
+        })}
+      </View>
 
       <Text style={[styles.rowLabel, { color: t.text, marginTop: 4 }]}>SCREEN TIMEOUT</Text>
       <View style={styles.chips}>

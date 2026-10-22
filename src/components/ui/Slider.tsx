@@ -54,8 +54,12 @@ export function Slider({
       live.current.onCommit?.(live.current.local);
     };
     return PanResponder.create({
-      onStartShouldSetPanResponder: () => !live.current.disabled,
-      onMoveShouldSetPanResponder: () => !live.current.disabled,
+      // Claim the touch only once it is clearly HORIZONTAL, so a finger dragging up or
+      // down across the slider scrolls the settings sheet instead of being eaten here
+      // (FACT on the unit: the sliders were blocking sheet scrolling).
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, g) =>
+        !live.current.disabled && Math.abs(g.dx) > 6 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
       onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: (e) => {
         dragging.current = true;

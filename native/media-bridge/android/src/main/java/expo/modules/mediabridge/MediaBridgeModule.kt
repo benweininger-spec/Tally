@@ -70,6 +70,13 @@ class MediaBridgeModule : Module() {
     }
 
     AsyncFunction("getNowPlaying") { readActive()?.let { controllerToBundle(it) } }
+    /** All active sessions (diagnostics / pickers). */
+    AsyncFunction("getSessions") { controllers().map { controllerToBundle(it) } }
+    /** The tuner's session, if the unit publishes one. */
+    AsyncFunction("getRadio") { radioSession(controllers())?.let { controllerToBundle(it) } }
+    /** Transport on the tuner session: next/previous = seek station on this unit. */
+    AsyncFunction("radioTransport") { cmd: String -> transportOn(radioSession(controllers()), cmd) }
+    AsyncFunction("toggle") { transportOn(readActive(), "toggle") }
 
     AsyncFunction("play") { transport { it.play() } }
     AsyncFunction("pause") { transport { it.pause() } }
@@ -92,14 +99,41 @@ class MediaBridgeModule : Module() {
    * (the stock Telenav launcher holds three), so "first" is usually a blank one. Prefer:
    * playing + has a title → any with a title → the Bluetooth A2DP/AVRCP session → first.
    */
-  private fun pick(list: List<MediaController>): MediaController? {
-    fun title(c: MediaController) = c.metadata?.getString(MediaMetadata.METADATA_KEY_TITLE)?.isNotBlank() == true
-    fun playing(c: MediaController) = c.playbackState?.state == PlaybackState.STATE_PLAYING
-    return list.firstOrNull { playing(it) && title(it) }
-      ?: list.firstOrNull { title(it) }
-      ?: list.firstOrNull { it.packageName == "com.android.bluetooth" }
-      ?: list.firstOrNull()
+  /** The stock Telenav launcher keeps 3 sessions open on this unit; one is the FM tuner
+   *  (title "102.30", artist = RDS text, album "FM") that stays STATE_PLAYING forever,
+   *  another is literally titled "Not Playing". Treat them as the RADIO source, never as
+   *  the Bluetooth/app source. */
+  private val LAUNCHER_PKG = "com.telenav.scout.launcher"
+  private fun titleOf(c: MediaController) = c.metadata?.getString(MediaMetadata.METADATA_KEY_TITLE)?.trim()
+  private fun realTitle(c: MediaController): Boolean {
+    val t = titleOf(c) ?: return false
+    return t.isNotBlank() && !t.equals("Not Playing", true) && !t.equals("Unknown", true)
   }
+  private fun playing(c: MediaController) = c.playbackState?.state == PlaybackState.STATE_PLAYING
+  private fun isLauncher(c: MediaController) = c.packageName == LAUNCHER_PKG
+
+  private fun pick(list: List<MediaController>): MediaController? =
+    list.firstOrNull { !isLauncher(it) && playing(it) && realTitle(it) }
+      ?: list.firstOrNull { !isLauncher(it) && realTitle(it) }
+      ?: list.firstOrNull { it.packageName == "com.android.bluetooth" && realTitle(it) }
+      ?: null
+
+  /** The FM/AM tuner session (launcher-owned, album == "FM"/"AM" or a frequency title). */
+  private fun radioSession(list: List<MediaController>): MediaController? =
+    list.firstOrNull { c ->
+      val album = c.metadata?.getString(MediaMetadata.METADATA_KEY_ALBUM)?.trim()?.uppercase()
+      val t = titleOf(c) ?: ""
+      (album == "FM" || album == "AM" || Regex("^\\d{2,4}\\.\\d$").matches(t)) && realTitle(c)
+    }
+
+  private fun transportOn(c: MediaController?, cmd: String) {
+    val tc = c?.transportControls ?: return
+    when (cmd) {
+      "play" -> tc.play(); "pause" -> tc.pause(); "next" -> tc.skipToNext(); "previous" -> tc.skipToPrevious()
+      "toggle" -> if (playing(c)) tc.pause() else tc.play()
+    }
+  }
+
 
   private fun readActive(): MediaController? = pick(controllers())
 
@@ -162,6 +196,7 @@ class MediaBridgeModule : Module() {
     val ps = c.playbackState
     return bundleOf(
       "package" to c.packageName,
+      "playing" to playing(c),
       "title" to md?.getString(MediaMetadata.METADATA_KEY_TITLE),
       "artist" to md?.getString(MediaMetadata.METADATA_KEY_ARTIST),
       "album" to md?.getString(MediaMetadata.METADATA_KEY_ALBUM),

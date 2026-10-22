@@ -71,6 +71,13 @@ export interface LiveControls {
   hasMediaAccess(): boolean;
   openMediaSettings(): void;
   refreshMedia(): Promise<void>;
+  /** transport on the active (Bluetooth/app) session */
+  mediaToggle(): void;
+  mediaNext(): void;
+  mediaPrevious(): void;
+  /** the unit's FM/AM tuner session, when it publishes one */
+  getRadio(): Promise<NowPlaying | null>;
+  radioSeek(dir: 1 | -1): void;
 }
 
 interface SimOptsCompat {
@@ -381,6 +388,21 @@ export class LiveDataSource implements DataSource, LiveControls {
   }
   async refreshMedia(): Promise<void> {
     await this.media.refresh();
+  }
+  mediaToggle(): void {
+    this.media.toggle();
+  }
+  mediaNext(): void {
+    this.media.next();
+  }
+  mediaPrevious(): void {
+    this.media.previous();
+  }
+  getRadio(): Promise<NowPlaying | null> {
+    return this.media.radio();
+  }
+  radioSeek(dir: 1 | -1): void {
+    this.media.radioSeek(dir);
   }
 
   /** Load any persisted IMU calibration. Call before start(). */

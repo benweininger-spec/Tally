@@ -13,6 +13,8 @@ export interface SysState {
   volume: number; // 0..1 (media stream)
   volumeSteps: number;
   screenTimeoutMs: number;
+  /** Android global font scale (1.0 = normal) */
+  fontScale: number;
   bluetoothOn: boolean;
   wifiOn: boolean;
 }
@@ -23,6 +25,7 @@ interface SysControlsNative {
   setBrightness(v: number): void;
   setVolume(v: number): void;
   setScreenTimeout(ms: number): void;
+  setFontScale(scale: number): void;
 }
 
 const native = requireOptionalNativeModule<SysControlsNative>('SysControls');
@@ -64,4 +67,9 @@ export async function openBluetoothSettings(): Promise<void> {
 
 export async function openWifiSettings(): Promise<void> {
   await IntentLauncher.startActivityAsync(IntentLauncher.ActivityAction.WIFI_SETTINGS);
+}
+
+/** Throws if WRITE_SETTINGS isn't granted. */
+export function setFontScale(scale: number): void {
+  native?.setFontScale(scale);
 }

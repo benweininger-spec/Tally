@@ -1,23 +1,26 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Press } from './ui/Press';
-import { shallowEqual, useTelemetry } from '../data/DataSourceProvider';
+import { shallowEqual, useSourceControls, useTelemetry } from '../data/DataSourceProvider';
+import type { NowPlaying } from '../data/types';
 import { useTheme } from '../theme/ThemeProvider';
 import { has } from '../data/types';
 import { useRadio, type Band, type RadioControls, type RadioState } from '../radio/RadioProvider';
+import type { LiveControls } from '../data/live/LiveDataSource';
 
 type MediaSource = 'bt' | 'radio';
-type NpView = { title: string; artist: string; source: string; isPlaying: boolean } | null;
+type NpView = { title: string; artist: string; source: string; isPlaying: boolean; artUri: string | null } | null;
 
 export const MediaWidget = React.memo(function MediaWidget() {
   const t = useTheme();
   const radio = useRadio();
+  const { live } = useSourceControls();
   const [source, setSource] = useState<MediaSource>('bt');
   // select only the display fields — NOT positionMs/durationMs, which advance every
   // tick — so the media card wakes on track/play change, not 30x/sec.
   const np = useTelemetry<NpView>((d) => {
     const v = has(d.media.nowPlaying) ? d.media.nowPlaying.value : null;
-    return v ? { title: v.title, artist: v.artist, source: v.source, isPlaying: v.isPlaying } : null;
+    return v ? { title: v.title, artist: v.artist, source: v.source, isPlaying: v.isPlaying, artUri: v.artUri } : null;
   }, shallowEqual);
 
   return (
@@ -41,7 +44,9 @@ export const MediaWidget = React.memo(function MediaWidget() {
       </View>
 
       {source === 'bt' ? (
-        <BluetoothNowPlaying np={np} t={t} />
+        <BluetoothNowPlaying np={np} t={t} live={live} />
+      ) : live ? (
+        <LiveRadio t={t} live={live} launch={radio.controls.launchFactory} />
       ) : (
         <RadioTuner state={radio.state} controls={radio.controls} t={t} />
       )}
@@ -50,16 +55,14 @@ export const MediaWidget = React.memo(function MediaWidget() {
 });
 
 // ---- Bluetooth now-playing (unchanged behavior) ----------------------------
-function BluetoothNowPlaying({ np, t }: { np: NpView; t: ReturnType<typeof useTheme> }) {
+function BluetoothNowPlaying({ np, t, live }: { np: NpView; t: ReturnType<typeof useTheme>; live: LiveControls | null }) {
   return (
     <>
       <Text style={[styles.label, { color: t.textFaint }]}>
         {np ? `NOW PLAYING · ${np.source}` : 'NOW PLAYING · NO SOURCE'}
       </Text>
       <View style={styles.row}>
-        <View style={[styles.art, { borderColor: t.panelBorder }]}>
-          <Text style={[styles.artText, { color: t.textFaint }]}>ART</Text>
-        </View>
+        <Art uri={np?.artUri ?? null} t={t} />
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text numberOfLines={1} style={[styles.title, { color: t.text }]}>
             {np ? np.title : 'Nothing playing'}
@@ -70,10 +73,64 @@ function BluetoothNowPlaying({ np, t }: { np: NpView; t: ReturnType<typeof useTh
         </View>
       </View>
       <View style={styles.transport}>
-        <Btn label="‹‹" theme={t} />
-        <Btn label={np?.isPlaying ? '❚❚' : '▶'} theme={t} primary />
-        <Btn label="››" theme={t} />
+        <Btn label="‹‹" theme={t} onPress={() => live?.mediaPrevious()} />
+        <Btn label={np?.isPlaying ? '❚❚' : '▶'} theme={t} primary onPress={() => live?.mediaToggle()} />
+        <Btn label="››" theme={t} onPress={() => live?.mediaNext()} />
       </View>
+    </>
+  );
+}
+
+/** Album art when the source sends it (apps on the unit usually do; plain Bluetooth
+ *  AVRCP mostly doesn't), else the placeholder tile. */
+function Art({ uri, t }: { uri: string | null; t: ReturnType<typeof useTheme> }) {
+  return uri ? (
+    <Image source={{ uri }} style={[styles.art, { borderColor: t.panelBorder }]} resizeMode="cover" />
+  ) : (
+    <View style={[styles.art, { borderColor: t.panelBorder }]}>
+      <Text style={[styles.artText, { color: t.textFaint }]}>ART</Text>
+    </View>
+  );
+}
+
+/**
+ * RADIO on the unit: the FM/AM tuner publishes a media session (FACT, 2026-10-21 — the
+ * stock launcher owns it: title = frequency, artist = RDS text, album = band), so we show
+ * it and map ‹‹ / ›› to its skip actions (= seek on this unit). Tuning by frequency still
+ * has no API, so the factory app stays one tap away.
+ */
+function LiveRadio({ t, live, launch }: { t: ReturnType<typeof useTheme>; live: LiveControls; launch: () => void }) {
+  const [r, setR] = useState<NowPlaying | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const tick = () => live.getRadio().then((v) => alive && setR(v)).catch(() => {});
+    tick();
+    const id = setInterval(tick, 2000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [live]);
+  const band = (r?.album || 'FM').toUpperCase();
+  return (
+    <>
+      <Text style={[styles.label, { color: t.textFaint }]}>{r ? `TUNER · ${band}` : 'TUNER · NOT PLAYING'}</Text>
+      <View style={styles.freqRow}>
+        <Text style={[styles.freq, { color: r ? t.accent : t.absent }]}>
+          {r ? r.title : '— · —'}
+          <Text style={{ fontSize: 22, color: t.textDim }}> {band === 'AM' ? 'kHz' : 'MHz'}</Text>
+        </Text>
+        <Text numberOfLines={2} style={[styles.station, { color: r ? t.text : t.textFaint }]}>
+          {r ? r.artist || 'NO RDS TEXT' : 'Start the radio on the unit'}
+        </Text>
+      </View>
+      <View style={styles.transport}>
+        <Btn label="SEEK ‹" theme={t} onPress={() => live.radioSeek(-1)} />
+        <Btn label="› SEEK" theme={t} onPress={() => live.radioSeek(1)} />
+      </View>
+      <Pressable onPress={launch} hitSlop={6}>
+        <Text style={[styles.launchLink, { color: t.textFaint }]}>OPEN FACTORY RADIO APP ↗</Text>
+      </Pressable>
     </>
   );
 }

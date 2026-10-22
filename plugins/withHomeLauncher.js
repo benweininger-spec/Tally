@@ -28,6 +28,9 @@ module.exports = function withHomeLauncher(config) {
       });
     }
     // a launcher must survive the task being cleared and take the screen back fast
+    // font-scale changes (SET → TEXT SIZE) must not recreate the activity
+    const cc = main.$['android:configChanges'] || '';
+    main.$['android:configChanges'] = Array.from(new Set((cc + '|fontScale|density').split('|').filter(Boolean))).join('|');
     main.$['android:excludeFromRecents'] = 'true';
     main.$['android:stateNotNeeded'] = 'true';
     return cfg;

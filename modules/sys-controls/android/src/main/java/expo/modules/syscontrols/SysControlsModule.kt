@@ -58,6 +58,21 @@ class SysControlsModule : Module() {
       val max = a.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
       // flags = 0: no system volume HUD (part of "make Android invisible")
       a.setStreamVolume(AudioManager.STREAM_MUSIC, (value.coerceIn(0.0, 1.0) * max).roundToInt(), 0)
+      // Microntek units: the amplifier is MCU-driven and ignores the Android stream.
+      // The MCU service accepts com.microntek.VOLUME_SET { volume: percent 0..100 }
+      // (FACT, decompiled MicrontekServer: vol = KEY_VOLMAX * volume / 100).
+      try {
+        context.sendBroadcast(
+          Intent("com.microntek.VOLUME_SET").putExtra("volume", (value.coerceIn(0.0, 1.0) * 100).roundToInt())
+        )
+      } catch (_: Throwable) {}
+    }
+
+    /** Android's global font scale (Settings.System.FONT_SCALE). RN text honours it live;
+     *  MainActivity declares fontScale in configChanges so the app doesn't restart. */
+    Function("setFontScale") { scale: Double ->
+      requireWrite()
+      Settings.System.putFloat(context.contentResolver, Settings.System.FONT_SCALE, scale.coerceIn(0.8, 1.6).toFloat())
     }
 
     Function("setScreenTimeout") { ms: Int ->
@@ -76,6 +91,7 @@ class SysControlsModule : Module() {
       "volume" to a.getStreamVolume(AudioManager.STREAM_MUSIC).toDouble() / max,
       "volumeSteps" to max,
       "screenTimeoutMs" to Settings.System.getInt(cr, Settings.System.SCREEN_OFF_TIMEOUT, 60_000),
+      "fontScale" to Settings.System.getFloat(cr, Settings.System.FONT_SCALE, 1f).toDouble(),
       "bluetoothOn" to bluetoothOn(),
       "wifiOn" to wifiOn()
     )

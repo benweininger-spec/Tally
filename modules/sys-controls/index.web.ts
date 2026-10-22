@@ -8,6 +8,7 @@ export interface SysState {
   volume: number;
   volumeSteps: number;
   screenTimeoutMs: number;
+  fontScale: number;
   bluetoothOn: boolean;
   wifiOn: boolean;
 }
@@ -24,3 +25,5 @@ export function setVolume(_v: number): void {}
 export function setScreenTimeout(_ms: number): void {}
 export async function openBluetoothSettings(): Promise<void> {}
 export async function openWifiSettings(): Promise<void> {}
+
+export function setFontScale(_scale: number): void {}

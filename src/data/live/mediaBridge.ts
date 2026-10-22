@@ -26,6 +26,10 @@ interface MediaBridgeNative {
   pause(): Promise<void>;
   next(): Promise<void>;
   previous(): Promise<void>;
+  toggle(): Promise<void>;
+  getSessions(): Promise<NativeTrack[]>;
+  getRadio(): Promise<NativeTrack | null>;
+  radioTransport(cmd: 'play' | 'pause' | 'next' | 'previous' | 'toggle'): Promise<void>;
   openListenerSettings(): void;
   addListener(event: string, cb: (payload: any) => void): { remove: () => void };
 }
@@ -154,6 +158,23 @@ export class MediaBridgeProvider {
   }
   previous() {
     void mod()?.previous();
+  }
+  toggle() {
+    void mod()?.toggle();
+  }
+  /** The head unit's FM/AM tuner session (FACT: published by the stock launcher). */
+  async radio(): Promise<NowPlaying | null> {
+    const m = mod();
+    if (!m || !this.hasAccess()) return null;
+    try {
+      const t = await m.getRadio();
+      return t ? toNowPlaying(t) : null;
+    } catch {
+      return null;
+    }
+  }
+  radioSeek(dir: 1 | -1) {
+    void mod()?.radioTransport(dir > 0 ? 'next' : 'previous');
   }
 
   getSnapshot(): MediaState {
