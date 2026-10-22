@@ -58,3 +58,10 @@ Wireless-debug port rotates per boot. Install over Wi-Fi is slow (129 MB ≈ 3 m
 `cmd package set-home-activity com.benji.tacomadash/.MainActivity`. Stock launcher:
 `com.telenav.scout.launcher`. Other launchers present: AGAMA, Car Launcher (khaledisim),
 bitpit, altergames, launcher3.
+
+## Hidden-API note (FACT)
+`android.microntek.CarManager` is a non-SDK class: plain reflection throws
+`NoSuchMethodException: CarManager.<init> []`. Either `adb shell settings put global
+hidden_api_policy 1`, or (what `MtcEventsModule` does) the VMRuntime
+`setHiddenApiExemptions(["L"])` meta-reflection trick before touching it. Verified:
+battery events arrive ~1/s as `{type:"battery", value:125}` → 12.5 V.

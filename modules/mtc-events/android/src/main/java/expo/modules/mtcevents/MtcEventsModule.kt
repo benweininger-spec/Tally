@@ -9,6 +9,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.Message
 import android.util.Log
+import java.lang.reflect.Method
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
@@ -47,6 +48,7 @@ class MtcEventsModule : Module() {
   private var receiver: BroadcastReceiver? = null
   private val last = HashMap<String, Map<String, Any?>>()
   private var carManager: Any? = null
+  private var syncLogged = false
 
   /**
    * android.microntek.CarManager is a hidden framework class on MTC units (the stock
@@ -54,8 +56,32 @@ class MtcEventsModule : Module() {
    * data{type:"battery", value:<tenths of a volt>} / {type:"handbrake", value}).
    * Reached by reflection; absent → silently skipped.
    */
+  /**
+   * android.microntek.CarManager is a hidden (non-SDK) class: on API 28+ plain reflection
+   * on it throws NoSuchMethodException (FACT on this unit). Exempt ourselves the standard way
+   * (VMRuntime.setHiddenApiExemptions via meta-reflection) before touching it. Harmless if
+   * it fails — attachCarManager then just logs "unavailable".
+   */
+  private fun exemptHiddenApis() {
+    try {
+      val forName = Class::class.java.getDeclaredMethod("forName", String::class.java)
+      val getDeclaredMethod = Class::class.java.getDeclaredMethod(
+        "getDeclaredMethod", String::class.java, arrayOf<Class<*>>()::class.java
+      )
+      val vmRuntime = forName.invoke(null, "dalvik.system.VMRuntime") as Class<*>
+      val getRuntime = getDeclaredMethod.invoke(vmRuntime, "getRuntime", null) as Method
+      val setExemptions = getDeclaredMethod.invoke(
+        vmRuntime, "setHiddenApiExemptions", arrayOf<Class<*>>(Array<String>::class.java)
+      ) as Method
+      setExemptions.invoke(getRuntime.invoke(null), arrayOf("L"))
+    } catch (e: Throwable) {
+      Log.w(TAG, "hidden-api exemption failed: $e")
+    }
+  }
+
   private fun attachCarManager() {
     if (carManager != null) return
+    exemptHiddenApis()
     try {
       val cls = Class.forName("android.microntek.CarManager")
       val cm = cls.getConstructor().newInstance()
@@ -116,6 +142,12 @@ class MtcEventsModule : Module() {
           val action = intent?.action ?: return
           val extras = bundleToMap(intent.extras)
           last[action] = extras
+          // com.microntek.sync fires ~3x/s with an opaque byte[]; keep it off the JS bridge
+          // and out of the log (first one only) until someone decodes it.
+          if (action == "com.microntek.sync") {
+            if (syncLogged) return
+            syncLogged = true
+          }
           Log.i(TAG, "$action $extras")
           sendEvent(EVENT, mapOf("action" to action, "extras" to extras, "at" to System.currentTimeMillis()))
         }
