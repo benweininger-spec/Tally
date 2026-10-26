@@ -33,7 +33,7 @@ export const Header = React.memo(function Header() {
         <Text style={[styles.mono, { color: wifi ? t.textDim : t.absent }]}>WI-FI</Text>
         <Text style={[styles.mono, { color: t.accent }]}>
           {v}
-          <Text style={{ color: t.textFaint, fontSize: 14 }}>V</Text>
+          <Text style={{ color: t.textFaint, fontSize: 17 }}>V</Text>
         </Text>
       </View>
     </View>
@@ -50,5 +50,5 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   right: { flexDirection: 'row', alignItems: 'center', gap: 34 },
-  mono: { fontFamily: 'JetBrains Mono', fontSize: 19, letterSpacing: 3 },
+  mono: { fontFamily: 'JetBrains Mono', fontSize: 23, letterSpacing: 2 },
 });

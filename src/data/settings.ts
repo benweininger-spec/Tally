@@ -182,3 +182,23 @@ export async function saveMpgLogRaw(log: unknown): Promise<void> {
     /* non-fatal: the next debounced save retries */
   }
 }
+
+// ---- logbook (fill-ups, service history, odometer) ----------------------------
+const KEY_LOGBOOK = 'tacoma-dash:logbook';
+
+export async function loadLogbookRaw(): Promise<unknown> {
+  try {
+    const v = await AsyncStorage.getItem(KEY_LOGBOOK);
+    return v ? JSON.parse(v) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveLogbookRaw(lb: unknown): Promise<void> {
+  try {
+    await AsyncStorage.setItem(KEY_LOGBOOK, JSON.stringify(lb));
+  } catch {
+    /* non-fatal: the next save retries */
+  }
+}

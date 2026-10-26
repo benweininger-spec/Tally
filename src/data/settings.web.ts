@@ -117,3 +117,19 @@ export async function loadMpgLogRaw(): Promise<unknown> {
 export async function saveMpgLogRaw(log: unknown): Promise<void> {
   ls()?.setItem(KEY_MPG_LOG, JSON.stringify(log));
 }
+
+// ---- logbook (fill-ups, service history, odometer) ----------------------------
+const KEY_LOGBOOK = 'tacoma-dash:logbook';
+
+export async function loadLogbookRaw(): Promise<unknown> {
+  try {
+    const v = ls()?.getItem(KEY_LOGBOOK);
+    return v ? JSON.parse(v) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveLogbookRaw(lb: unknown): Promise<void> {
+  ls()?.setItem(KEY_LOGBOOK, JSON.stringify(lb));
+}

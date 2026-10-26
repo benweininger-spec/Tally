@@ -7,6 +7,7 @@ import { ReactiveBackground } from '../components/ReactiveBackground';
 import { Dock } from '../components/Dock';
 import { AppDrawer } from './AppDrawer';
 import { BootSweep } from '../components/BootSweep';
+import { ServiceNudge, TripSummaryLayer } from '../components/HomeLog';
 import { FacePager, type FaceDef } from './FacePager';
 import { HomeFace } from './faces/HomeFace';
 import { DriveFace } from './faces/DriveFace';
@@ -79,7 +80,11 @@ export function HomeScreen() {
         <FaceDots index={index} onPick={go} />
       </MaybeNight>
 
+      {/* a service coming due: header pill, HOME only (the night suggestion sits on top) */}
+      {faceReady && FACES[index].id === 'home' && <ServiceNudge />}
       {faceReady && <NightSuggest onNightFace={night} onAccept={() => go(NIGHT)} />}
+      {/* parked after a drive: "trip summary?" button → card, on any face */}
+      <TripSummaryLayer />
 
       {/* cold-start power-up veil (once per process; PulseTach plays the sweep) */}
       <BootSweep />
@@ -178,7 +183,7 @@ const styles = StyleSheet.create({
   dotHit: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center' },
   dot: { width: 10, height: 10, borderRadius: 5 },
   // just right of the centred dot row (30-px hits, 8-px gaps), whatever the face count
-  faceName: { position: 'absolute', left: 1000 + (FACES.length * 38 - 8) / 2 + 14, fontFamily: 'JetBrains Mono', fontSize: 12, letterSpacing: 3 },
+  faceName: { position: 'absolute', left: 1000 + (FACES.length * 38 - 8) / 2 + 14, fontFamily: 'JetBrains Mono', fontSize: 15, letterSpacing: 3 },
   // lives in the empty middle of the header bar, so it never covers an instrument
   suggest: {
     position: 'absolute',
@@ -194,5 +199,5 @@ const styles = StyleSheet.create({
     gap: 24,
   },
   suggestTitle: { fontFamily: 'Oxanium', fontSize: 26, fontWeight: '700', letterSpacing: 2 },
-  suggestSub: { fontFamily: 'JetBrains Mono', fontSize: 13, letterSpacing: 2 },
+  suggestSub: { fontFamily: 'JetBrains Mono', fontSize: 16, letterSpacing: 2 },
 });

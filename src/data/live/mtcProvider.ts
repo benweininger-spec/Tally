@@ -43,6 +43,9 @@ export interface MtcState {
   voltage: number | null;
   voltageAt: number | null;
   handbrake: boolean | null;
+  /** REVERSE (the camera trigger), from report.event type "backview"; null = never heard */
+  reverse: boolean | null;
+  reverseAt: number | null;
   /** most recent raw event per action, for diagnostics */
   lastByAction: Record<string, Record<string, unknown>>;
 }
@@ -51,7 +54,7 @@ const truthy = (v: unknown) => v === true || v === 1 || v === '1' || v === 'true
 
 export class MtcProvider {
   private sub: { remove: () => void } | null = null;
-  private state: MtcState = { available: false, headlights: null, headlightsAt: null, acc: null, voltage: null, voltageAt: null, handbrake: null, lastByAction: {} };
+  private state: MtcState = { available: false, headlights: null, headlightsAt: null, acc: null, voltage: null, voltageAt: null, handbrake: null, reverse: null, reverseAt: null, lastByAction: {} };
 
   start(): void {
     const m = mod();
@@ -60,6 +63,7 @@ export class MtcProvider {
     // seed from anything the module already saw
     const seed = m.last('com.microntek.report.event');
     if (seed && seed.type === 'headlight') this.applyHeadlight(seed.value, Date.now());
+    if (seed && seed.type === 'backview') this.applyReverse(seed.value, Date.now());
     const bat = m.last('carmanager.battery');
     if (bat && Number(bat.value) > 0) { this.state.voltage = Number(bat.value) / 10; this.state.voltageAt = Date.now(); }
     this.sub = m.addListener('onMtcEvent', (e) => this.onEvent(e));
@@ -79,11 +83,21 @@ export class MtcProvider {
     this.state.headlightsAt = at;
   }
 
+  /**
+   * Reverse = the MCU's "backview" state (from the decompiled MicrontekServer: it broadcasts
+   * REPORT_EVENT {type: "backview", value} exactly like the verified headlight event).
+   */
+  private applyReverse(v: unknown, at: number) {
+    this.state.reverse = truthy(v);
+    this.state.reverseAt = at;
+  }
+
   private onEvent(e: MtcEvent) {
     this.state.lastByAction[e.action] = e.extras;
     switch (e.action) {
       case 'com.microntek.report.event':
         if (e.extras.type === 'headlight') this.applyHeadlight(e.extras.value, e.at);
+        if (e.extras.type === 'backview') this.applyReverse(e.extras.value, e.at);
         break;
       case 'com.microntek.biglight.state':
       case 'com.microntek.carlight':

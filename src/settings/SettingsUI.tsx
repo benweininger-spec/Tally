@@ -24,8 +24,12 @@ import { shallowEqual, useDataSource, useSourceControls, useTelemetry } from '..
 import { SimulatedDataSource } from '../data/SimulatedDataSource';
 import type { SignalStatus } from '../data/types';
 import type { ObdDevice } from '../data/live/obd/transport';
+import type { LiveControls, LiveStatus } from '../data/live/LiveDataSource';
+import type { ObdDiagnostics } from '../data/live/obd/ObdManager';
+import { PID_FEEDS, hexPid, type PidHealth } from '../lib/obdDiag';
 import { useDock } from '../dock/DockConfig';
 import { useAppDrawer } from '../apps/AppsProvider';
+import { useLogbookUI } from '../logbook/LogbookUI';
 import { MAX_DOCK_TILES, type DockTile } from '../dock/defaults';
 import type { ThemeMode } from '../data/settings';
 import { Btn, Section } from './parts';
@@ -68,6 +72,7 @@ function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => 
     shallowEqual
   );
   const { mode, setMode, live } = useSourceControls();
+  const { openLog } = useLogbookUI();
   const { mode: themeMode, setMode: setThemeMode } = useThemeMode();
   const { reduced: reducedMotion, setReduced: setReducedMotion } = useMotionPref();
   const [preview, setPreview] = useState(false);
@@ -159,6 +164,14 @@ function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => 
             {/* system quick controls first — the thing reached for most while driving */}
             <Section t={t} title="QUICK CONTROLS">
               <QuickControls t={t} visible={visible} />
+            </Section>
+
+            {/* fill-ups + service history (the truck's logbook) */}
+            <Section t={t} title="LOGBOOK">
+              <View style={styles.toggleRow}>
+                <Btn t={t} label="SERVICE + MAINTENANCE" onPress={() => { onClose(); openLog('service'); }} />
+                <Btn t={t} label="FUEL + FILL-UPS" onPress={() => { onClose(); openLog('fuel'); }} />
+              </View>
             </Section>
 
             {/* source mode */}
@@ -334,6 +347,7 @@ function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => 
                 </Section>
 
                 <Section t={t} title="OBD2 ADAPTER">
+                  <ObdAutoLine t={t} live={live} />
                   {!status.obdConnected ? (
                     <>
                       <View style={styles.btnRow}>
@@ -366,12 +380,22 @@ function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => 
                         </Press>
                       ))}
                       <Text style={[styles.hint, { color: t.textFaint }]}>
-                        Pair the dongle once in Android Bluetooth settings first, then Connect.
+                        Pair the dongle once in Android Bluetooth settings, then Connect once. After
+                        that it's remembered and reconnects by itself whenever the truck starts.
                       </Text>
                     </>
                   ) : (
-                    <Btn t={t} label="DISCONNECT OBD" onPress={() => live.disconnectObd()} />
+                    <>
+                      <Btn t={t} label="DISCONNECT OBD" onPress={() => live.disconnectObd()} />
+                      <Text style={[styles.hint, { color: t.textFaint }]}>
+                        Disconnecting pauses auto-connect until you tap Connect or the next ignition-on.
+                      </Text>
+                    </>
                   )}
+                </Section>
+
+                <Section t={t} title="OBD DIAGNOSTICS">
+                  <ObdDiagnosticsView t={t} live={live} />
                 </Section>
 
                 <Section t={t} title="MEDIA ACCESS">
@@ -469,26 +493,129 @@ function Toggle({
   );
 }
 
+/**
+ * One line of OBD auto-connect state. Polls `live.getStatus()` once a second, and only
+ * while the SET sheet is open — nothing here touches the telemetry stream.
+ */
+function ObdAutoLine({ t, live }: { t: ReturnType<typeof useTheme>; live: LiveControls }) {
+  const [st, setSt] = useState<LiveStatus>(() => live.getStatus());
+  useEffect(() => {
+    const id = setInterval(() => setSt(live.getStatus()), 1000);
+    return () => clearInterval(id);
+  }, [live]);
+  const secs = st.obdRetryInMs != null ? Math.ceil(st.obdRetryInMs / 1000) : null;
+  const target = st.obdAdapterName ?? st.obdSavedMac ?? 'first paired OBD adapter';
+  const line =
+    st.obdAuto === 'connected'
+      ? `AUTO-CONNECT · LINKED · ${target}`
+      : st.obdAuto === 'connecting'
+        ? `AUTO-CONNECT · DIALING ${target}…`
+        : st.obdAuto === 'off'
+          ? 'AUTO-CONNECT · PAUSED (tap CONNECT)'
+          : st.obdAuto === 'no-adapter'
+            ? `AUTO-CONNECT · NO PAIRED ADAPTER${secs != null ? ` · retry in ${secs}s` : ''}`
+            : st.obdAuto === 'no-permission'
+              ? 'AUTO-CONNECT · NEEDS BLUETOOTH PERMISSION (tap CONNECT once)'
+              : `AUTO-CONNECT · WAITING FOR ${target}${secs != null ? ` · retry in ${secs}s` : ''}`;
+  const color = st.obdAuto === 'connected' ? t.accent : st.obdAuto === 'off' ? t.textFaint : t.textDim;
+  return (
+    <View style={{ gap: 4 }}>
+      <Text style={[styles.hint, { color }]}>{line}</Text>
+      {st.obdAuto !== 'connected' && st.obdAuto !== 'off' && st.obdLastError ? (
+        <Text numberOfLines={2} style={[styles.hint, { color: t.textFaint }]}>
+          last try: {st.obdLastError}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+const HEALTH_TEXT: Record<PidHealth, string> = {
+  ok: 'OK',
+  slow: 'NOT RECENT',
+  'no-data': 'NO DATA',
+  unsupported: 'NOT ON THIS TRUCK',
+  waiting: 'WAITING',
+};
+
+/**
+ * What the truck answers, PID by PID: value + age when it works, "NOT ON THIS TRUCK" when
+ * the ECU's support list leaves it out, "NO DATA" when it's listed but silent. Polls
+ * `live.getObdDiagnostics()` once a second while SET is open only.
+ */
+function ObdDiagnosticsView({ t, live }: { t: ReturnType<typeof useTheme>; live: LiveControls }) {
+  const [d, setD] = useState<ObdDiagnostics | null>(() => live.getObdDiagnostics());
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => {
+      setD(live.getObdDiagnostics());
+      setNow(Date.now());
+    }, 1000);
+    return () => clearInterval(id);
+  }, [live]);
+  if (!d) {
+    return <Text style={[styles.hint, { color: t.textFaint }]}>No OBD link yet — shows each value once the dongle connects.</Text>;
+  }
+  const color = (h: PidHealth) => (h === 'ok' ? t.accent : h === 'unsupported' ? t.textFaint : h === 'waiting' ? t.textDim : t.warn);
+  return (
+    <View style={{ gap: 6 }}>
+      <Text style={[styles.hint, { color: t.textDim }]}>
+        {d.adapter ?? 'adapter ?'} · protocol {d.protocol ?? '?'} · {d.pollHz} replies/s{d.fastReplies ? ' (fast mode)' : ''} · ECU{' '}
+        {d.ecuAwake ? 'awake' : 'asleep (key off?)'}
+      </Text>
+      {d.rows.map((r) => (
+        <View key={r.pid} style={[styles.diagRow, { borderColor: t.hairline }]}>
+          <Text style={[styles.diagPid, { color: t.textFaint }]}>{hexPid(r.pid)}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.diagName, { color: t.text }]}>{r.label}</Text>
+            {PID_FEEDS[r.pid] ? <Text style={[styles.diagFeeds, { color: t.textFaint }]}>{PID_FEEDS[r.pid]}</Text> : null}
+          </View>
+          <Text style={[styles.diagVal, { color: t.textDim }]}>
+            {r.lastValue != null && r.lastAt != null ? `${Math.round(r.lastValue * 100) / 100} · ${Math.round((now - r.lastAt) / 1000)}s ago` : ''}
+          </Text>
+          <Text style={[styles.diagHealth, { color: color(r.health) }]}>{HEALTH_TEXT[r.health]}</Text>
+        </View>
+      ))}
+      <Text style={[styles.hint, { color: t.textFaint }]}>
+        Truck reports support for:{' '}
+        {d.supportKnown ? d.supported.map(hexPid).join(' ') : 'unknown — the support query got no answer (key off when it connected?)'}
+      </Text>
+      <Text style={[styles.hint, { color: t.textFaint }]}>
+        Transmission temp probe: {d.transProbe ? `answering (${d.transProbe})` : d.ecuAwake ? 'no answer yet' : 'waits for the engine'}
+      </Text>
+      <Text style={[styles.hint, { color: t.textFaint }]}>
+        Fuel level (gauge cluster) probe: {d.fuelProbe ? `answering (${d.fuelProbe})` : d.ecuAwake ? 'no answer yet' : 'waits for the engine'}
+      </Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  diagRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: 1, paddingVertical: 6 },
+  diagPid: { width: 30, fontFamily: 'JetBrains Mono', fontSize: 16 },
+  diagName: { fontFamily: 'Oxanium', fontSize: 19, fontWeight: '600' },
+  diagFeeds: { fontFamily: 'JetBrains Mono', fontSize: 15, letterSpacing: 1 },
+  diagVal: { width: 170, textAlign: 'right', fontFamily: 'JetBrains Mono', fontSize: 16 },
+  diagHealth: { width: 170, textAlign: 'right', fontFamily: 'JetBrains Mono', fontSize: 16, letterSpacing: 1 },
   scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
   sheet: { width: 920, maxWidth: '92%', maxHeight: '94%', borderWidth: 1, borderRadius: 10, padding: 32 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   title: { fontFamily: 'Oxanium', fontSize: 30, fontWeight: '800', letterSpacing: 2 },
-  close: { fontFamily: 'JetBrains Mono', fontSize: 15, letterSpacing: 2 },
+  close: { fontFamily: 'JetBrains Mono', fontSize: 18, letterSpacing: 2 },
   toggleRow: { flexDirection: 'row', gap: 16 },
   toggle: { flex: 1, borderWidth: 1, borderRadius: 6, paddingVertical: 18, alignItems: 'center' },
   toggleText: { fontFamily: 'Oxanium', fontSize: 20, fontWeight: '700', letterSpacing: 2 },
-  hint: { fontFamily: 'JetBrains Mono', fontSize: 13, lineHeight: 19 },
+  hint: { fontFamily: 'JetBrains Mono', fontSize: 16, lineHeight: 19 },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   dot: { width: 12, height: 12, borderRadius: 6 },
-  statusLabel: { fontFamily: 'JetBrains Mono', fontSize: 15, letterSpacing: 1, width: 150 },
-  statusDetail: { fontFamily: 'JetBrains Mono', fontSize: 13, flex: 1 },
-  statusValue: { fontFamily: 'JetBrains Mono', fontSize: 14, letterSpacing: 1 },
+  statusLabel: { fontFamily: 'JetBrains Mono', fontSize: 18, letterSpacing: 1, width: 150 },
+  statusDetail: { fontFamily: 'JetBrains Mono', fontSize: 16, flex: 1 },
+  statusValue: { fontFamily: 'JetBrains Mono', fontSize: 17, letterSpacing: 1 },
   btnRow: { flexDirection: 'row', gap: 16 },
   deviceRow: { borderWidth: 1, borderRadius: 6, padding: 14 },
   deviceName: { fontFamily: 'Oxanium', fontSize: 17, fontWeight: '600' },
-  deviceMac: { fontFamily: 'JetBrains Mono', fontSize: 12, marginTop: 2 },
-  note: { fontFamily: 'JetBrains Mono', fontSize: 14, marginTop: 4 },
+  deviceMac: { fontFamily: 'JetBrains Mono', fontSize: 15, marginTop: 2 },
+  note: { fontFamily: 'JetBrains Mono', fontSize: 17, marginTop: 4 },
   dockRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   input: {
     borderWidth: 1,
@@ -496,10 +623,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontFamily: 'JetBrains Mono',
-    fontSize: 15,
+    fontSize: 18,
   },
   labelInput: { width: 170, letterSpacing: 2 },
-  pkg: { flex: 1, fontFamily: 'JetBrains Mono', fontSize: 14, paddingHorizontal: 4 },
+  pkg: { flex: 1, fontFamily: 'JetBrains Mono', fontSize: 17, paddingHorizontal: 4 },
   iconBtn: { width: 36, height: 40, alignItems: 'center', justifyContent: 'center' },
   icon: { fontFamily: 'JetBrains Mono', fontSize: 18 },
 });

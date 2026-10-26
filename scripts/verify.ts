@@ -5,6 +5,7 @@
  */
 import {
   arcPath,
+  buildTrace,
   buildWaveform,
   gaugeProgress,
   gaugeRedline,
@@ -45,12 +46,56 @@ import {
   AT_INIT,
   PIDS,
   TRANS_TEMP_PROBES,
+  FUEL_LEVEL_PROBES,
   decodeProbe,
   isClearAck,
   parseResponse,
   responseMessages,
 } from '../src/lib/elm327.ts';
 import { describeDtc, DTC_DESCRIPTION_COUNT } from '../src/lib/dtcDescriptions.ts';
+import {
+  COOLANT_HOT_F,
+  COOLANT_WARM_F,
+  ECO_MPG,
+  MPG_BAR_MAX,
+  coolantState,
+  ecoLevel,
+  emaStep,
+  POOR_MPG,
+  warmupStage,
+  inEcoZone,
+  mpgBarFrac,
+  warmupFrac,
+} from '../src/lib/engineGlance.ts';
+import { hexPid, pidHealth, summarizeHealth, type PidStat } from '../src/lib/obdDiag.ts';
+import {
+  TANK_GAL,
+  addFill,
+  addService,
+  dueText,
+  emptyLogbook,
+  fuelLeft,
+  nextDue,
+  normalizeLogbook,
+  odometerNow,
+  onUsage,
+  pumpMpgs,
+  rangeMiles,
+  serviceStatus,
+  setOdometer,
+  spending,
+  fillCost,
+} from '../src/lib/logbook.ts';
+import { GEAR_RATIOS, K_NOMINAL, REVERSE_TO_PARK_MS, STOP_PROMPT_MS, createGearState, gearStep, matchGear, summaryPromptDue } from '../src/lib/gear.ts';
+import {
+  OBD_RETRY_SLOW_AFTER_MS,
+  OBD_RETRY_SLOW_MS,
+  OBD_RETRY_STEADY_MS,
+  OBD_RETRY_STEPS_MS,
+  obdRetryDelayMs,
+  pickObdAdapter,
+  rankObdDevices,
+} from '../src/lib/obdLink.ts';
 import {
   addDelta,
   bestWorstDay,
@@ -64,6 +109,8 @@ import {
   runs,
   syntheticLog,
   tripEnd,
+  tripTick,
+  ecoShare,
   tripMpg,
   tripStart,
   tripUpdate,
@@ -587,6 +634,229 @@ console.log('\nSIGNATURE MOMENTS (src/lib/sweep.ts)');
   const cEnd = connectSweep(CONNECT_MS - 1, 0.4, 0.15)!;
   ok(Math.abs(cEnd.frac - 0.15) < 0.01 && cEnd.redline === 1, 'connect sweep lands on live rpm, redline lit');
   ok(connectSweep(CONNECT_MS, 0.4, 0.15) === null, 'connect sweep ends at CONNECT_MS');
+}
+
+console.log('\nSIGNATURE SPEED TRACE (src/lib/pulse.ts buildTrace)');
+{
+  const box = { x: 100, y: 200, width: 1000, height: 100 };
+  const nums = (d: string) => (d.match(/-?\d+(\.\d+)?/g) ?? []).map(Number);
+  const flat = buildTrace({ samples: new Float32Array(1800), count: 0, ...box });
+  ok(flat.top === 40 && nums(flat.line).filter((_, i) => i % 2 === 1).every((y) => y === 300), 'no data → flat zero line on the floor, 40 mph scale');
+  const cruise = new Float32Array(1800).fill(50);
+  const c = buildTrace({ samples: cruise, count: 1800, ...box });
+  ok(c.top === 60 && Math.abs(c.head.y - (300 - (50 / 60) * 100)) < 0.01, `steady 50 mph → level line, scale rounds up to ${c.top}`);
+  ok(/^M [\d.]+ [\d.]+( C( [\d.]+){6})+$/.test(c.line) && !/NaN|Infinity/.test(c.fill), 'line is pure cubic Béziers (a spline, no corners); finite numbers only');
+  // GPS-style stair steps: speed changes in 1 Hz jumps (20 samples each) while accelerating
+  const stairs = new Float32Array(1800);
+  for (let i = 0; i < 1800; i++) stairs[i] = Math.min(65, Math.floor(i / 20) * 2);
+  const ys = (tr: { line: string }) => nums(tr.line).filter((_, i) => i % 2 === 1);
+  let worst = 0;
+  for (let n = 1000; n < 1040; n++) {
+    const a = ys(buildTrace({ samples: stairs, count: n, ...box }));
+    const b = ys(buildTrace({ samples: stairs, count: n + 1, ...box }));
+    for (let i = 0; i < a.length; i++) worst = Math.max(worst, Math.abs(a[i] - b[i]));
+  }
+  ok(worst < 1.5, `one new sample moves the curve < 1.5 px anywhere (smooth scroll, worst ${worst.toFixed(2)} px)`);
+  const jag = new Float32Array(1800);
+  for (let i = 0; i < 1800; i++) jag[i] = 40 + (i % 2 ? 6 : -6); // ±6 mph sample-to-sample noise
+  const j = ys(buildTrace({ samples: jag, count: 1800, ...box }));
+  ok(Math.max(...j) - Math.min(...j) < 2, 'sample-to-sample jitter is averaged away (no jagged up-and-down)');
+  const neg = buildTrace({ samples: [-5, NaN, Infinity, 30], count: 4, ...box });
+  ok(!/NaN|Infinity/.test(neg.line + neg.fill) && neg.head.y <= 300 && neg.head.y >= 200, 'bad samples (negative / NaN / ∞) stay inside the box');
+}
+
+console.log('\nHOME GLANCES — warm-up + eco zone (src/lib/engineGlance.ts)');
+{
+  ok(coolantState(135) === 'cold' && coolantState(COOLANT_WARM_F) === 'warm' && coolantState(196) === 'warm' && coolantState(COOLANT_HOT_F) === 'hot', 'coolant: cold < 160 ≤ warm < 230 ≤ hot');
+  ok(warmupFrac(100) === 0 && Math.abs(warmupFrac(130) - 0.5) < 1e-9 && warmupFrac(163) === 1 && warmupFrac(NaN) === 0, 'warm-up bar 100 → 160 °F, clamped');
+  // the truck, 2026-10-23: 158 °F at 526 s run time, 163 °F at 572 s — crossed "warm" at idle
+  ok(coolantState(158) === 'cold' && coolantState(163) === 'warm', 'measured idle warm-up crosses the line between 158 and 163 °F');
+  ok(warmupStage(100) === 0 && warmupStage(125) === 1 && warmupStage(150) === 2 && warmupStage(160) === 3 && warmupStage(NaN) === 0, 'coolant colour steps blue → amber at 120 / 140 / 160 °F');
+  ok(ecoLevel(null) === null && ecoLevel(ECO_MPG) === 1 && ecoLevel(30) === 1 && ecoLevel(POOR_MPG) === 0 && ecoLevel(5) === 0, `economy colour: green ≥ ${ECO_MPG}, warn ≤ ${POOR_MPG} mpg`);
+  ok([15, 17, 19, 20].map((m) => ecoLevel(m)).every((v, i, a) => v != null && v > 0 && v < 1 && (i === 0 || v >= (a[i - 1] as number))), 'economy colour fades in quarter steps between poor and eco (20 mpg is not yet green)');
+  ok(!inEcoZone(null) && !inEcoZone(ECO_MPG - 1) && inEcoZone(ECO_MPG) && !inEcoZone(NaN), `eco zone = instant ≥ ${ECO_MPG} mpg (EPA combined)`);
+  ok(mpgBarFrac(0) === 0 && mpgBarFrac(MPG_BAR_MAX / 2) === 0.5 && mpgBarFrac(99) === 1 && mpgBarFrac(-3) === 0, 'mpg bar 0–40, coasting pins to the end');
+  const e1 = emaStep(null, 20, 50, 2000);
+  let e = e1;
+  for (let i = 0; i < 40; i++) e = emaStep(e, 30, 50, 2000); // 2 s at 20 Hz
+  ok(e1 === 20 && e > 26 && e < 27.5, `EMA seeds on first value, ~63% of a step after one τ (${e.toFixed(2)})`);
+  ok(emaStep(20, 99, 0, 2000) === 20 && emaStep(20, 99, -5, 2000) === 20, 'EMA ignores zero / negative dt');
+}
+
+console.log('\nOBD DIAGNOSTICS (src/lib/obdDiag.ts)');
+{
+  const now = 100_000;
+  const st = (p: Partial<PidStat>): PidStat => ({ pid: 0x05, asked: 0, answered: 0, noData: 0, timeouts: 0, lastValue: null, lastAt: null, ...p });
+  ok(pidHealth(st({ asked: 9, answered: 9, lastAt: now - 4000 }), true, now) === 'ok', 'answering → ok');
+  ok(pidHealth(st({ asked: 9, answered: 3, lastAt: now - 60_000 }), true, now) === 'slow', 'answered before, nothing recent → slow');
+  ok(pidHealth(undefined, false, now) === 'unsupported' && pidHealth(st({ asked: 0 }), false, now) === 'unsupported', 'left out of the support mask → unsupported (never asked)');
+  ok(pidHealth(st({ asked: 6, noData: 6 }), true, now) === 'no-data' && pidHealth(st({ asked: 6, timeouts: 6 }), null, now) === 'no-data', 'asked but never decoded → no-data');
+  ok(pidHealth(undefined, null, now) === 'waiting' && pidHealth(undefined, true, now) === 'waiting', 'not asked yet → waiting');
+  ok(hexPid(0x0c) === '0C' && hexPid(0x5c) === '5C', 'hexPid pads + uppercases');
+  const line = summarizeHealth([
+    { pid: 0x0c, health: 'ok' },
+    { pid: 0x05, health: 'ok' },
+    { pid: 0x2f, health: 'unsupported' },
+    { pid: 0x5c, health: 'unsupported' },
+  ]);
+  ok(line === 'ok: 0C 05 · unsupported: 2F 5C', `logcat summary groups by health ("${line}")`);
+}
+
+console.log('\nLOGBOOK — fuel tank, odometer, service (src/lib/logbook.ts)');
+{
+  const DAY = 86_400_000;
+  const t0 = Date.UTC(2026, 0, 1);
+  const lb = emptyLogbook();
+  ok(fuelLeft(lb) === null && odometerNow(lb) === null, 'nothing logged → fuel left + odometer unknown (never guessed)');
+  addFill(lb, { at: t0, gallons: null, full: true, pricePerGal: 4.5, odometer: 80_000 });
+  ok(fuelLeft(lb)!.gallons === TANK_GAL && odometerNow(lb) === 80_000, `a full fill = ${TANK_GAL} gal; odometer reading taken`);
+  onUsage(lb, 200, 10);
+  ok(Math.abs(fuelLeft(lb)!.gallons - (TANK_GAL - 10)) < 1e-9 && odometerNow(lb) === 80_200, 'MAF gallons drain the tank; logged miles advance the odometer');
+  ok(Math.abs(rangeMiles(fuelLeft(lb)!.gallons, 20)! - (TANK_GAL - 10) * 20) < 1e-9 && rangeMiles(null, 20) === null, 'range = gallons left × mpg');
+  // the pump says 12.0 gal went in where MAF measured 10.0 → MAF under-reads by 20 %
+  addFill(lb, { at: t0 + 5 * DAY, gallons: 12, full: true, pricePerGal: 4.6, odometer: null });
+  ok(lb.calib != null && Math.abs(lb.calib - 1.2) < 1e-9, 'full → full fill learns the pump calibration (pumped ÷ measured = 1.20)');
+  onUsage(lb, 100, 5);
+  ok(Math.abs(fuelLeft(lb)!.gallons - (TANK_GAL - 6)) < 1e-9, 'later burn is corrected by the calibration (5 measured → 6 real)');
+  ok(pumpMpgs(lb).length === 1 && Math.abs(pumpMpgs(lb)[0].mpg - 200 / 12) < 1e-9, 'pump-honest MPG between full fills (200 mi / 12 gal)');
+  addFill(lb, { at: t0 + 6 * DAY, gallons: 3, full: false, pricePerGal: null, odometer: null });
+  ok(Math.abs(fuelLeft(lb)!.gallons - (TANK_GAL - 6 + 3)) < 1e-9, 'a partial fill adds what was pumped');
+  const silly = emptyLogbook();
+  addFill(silly, { at: t0, gallons: null, full: true, pricePerGal: null, odometer: null });
+  onUsage(silly, 50, 4);
+  addFill(silly, { at: t0 + DAY, gallons: 40, full: true, pricePerGal: null, odometer: null }); // 10× — a typo
+  ok(silly.calib === null, 'an implausible pump number (typo) never becomes the calibration');
+  onUsage(silly, 0, 999);
+  ok(fuelLeft(silly)!.gallons === 0, 'fuel left never goes negative');
+
+  // service: oil 10k mi / 12 mo, logged at 79,500 mi six months ago; odometer now ~80,300
+  const sv = emptyLogbook();
+  const now = t0 + 400 * DAY;
+  addService(sv, { at: now - 182 * DAY, odometer: 79_500, types: ['oil', 'rotate'], note: ' dealer ', cost: 90 });
+  setOdometer(sv, 84_200, now - DAY);
+  const st = serviceStatus(sv, now);
+  const oil = st.find((r) => r.type.id === 'oil')!;
+  const rot = st.find((r) => r.type.id === 'rotate')!;
+  ok(oil.state === 'ok' && oil.inMiles === 5_300 && oil.inDays != null && oil.inDays > 150 && oil.inDays < 200, `oil 10k / 12 mo after 79,500 → ok, ${dueText(oil)}`);
+  ok(rot.state === 'soon' && rot.inMiles === 300, `tire rotation 5k after 79,500 at 84,200 → ${dueText(rot)}`);
+  ok(st[0].type.id === 'rotate' && nextDue(sv, now)?.type.id === 'rotate', 'most urgent first; HOME nudges the nearest due item');
+  ok(st.find((r) => r.type.id === 'plugs')!.state === 'never', 'never-logged items say so (no fake due date)');
+  addService(sv, { at: now - 900 * DAY, odometer: 60_000, types: ['oil'], note: '', cost: null }); // back-logged history
+  ok(odometerNow(sv) === 84_200, 'back-logging an OLD service never rewinds the odometer');
+  ok(serviceStatus(sv, now).find((r) => r.type.id === 'oil')!.last!.odometer === 79_500, 'the latest service of a kind is what counts');
+  ok(sv.service[0].at < sv.service[1].at && sv.service[1].note === 'dealer', 'history stays date-sorted; notes trimmed');
+  addService(sv, { at: now, odometer: 84_250, types: ['rotate'], note: '', cost: null });
+  ok(serviceStatus(sv, now).find((r) => r.type.id === 'rotate')!.state === 'ok', 'logging it clears the nudge');
+  const back = normalizeLogbook(JSON.parse(JSON.stringify(lb)));
+  ok(back.fills.length === lb.fills.length && back.calib === lb.calib && Math.abs(fuelLeft(back)!.gallons - fuelLeft(lb)!.gallons) < 1e-9, 'round-trips through JSON');
+  ok(normalizeLogbook('garbage').fills.length === 0 && normalizeLogbook({ fills: [null, { at: 'x' }] }).fills.length === 0, 'corrupt storage loads as an empty logbook');
+
+  // spending: real pump numbers, this month + per mile
+  const sp = emptyLogbook();
+  const nowS = Date.UTC(2026, 9, 26, 12);
+  addFill(sp, { at: Date.UTC(2026, 8, 20), gallons: 18.0, full: true, pricePerGal: 4.0, odometer: null }); // September
+  onUsage(sp, 380, 17);
+  addFill(sp, { at: Date.UTC(2026, 9, 5), gallons: 19.0, full: true, pricePerGal: 4.5, odometer: null });
+  onUsage(sp, 350, 16);
+  addFill(sp, { at: Date.UTC(2026, 9, 20), gallons: 17.5, full: true, pricePerGal: 4.6, odometer: null });
+  addFill(sp, { at: Date.UTC(2026, 9, 22), gallons: null, full: true, pricePerGal: 4.7, odometer: null }); // no gallons: can't cost
+  const spd = spending(sp, nowS, 20);
+  ok(Math.abs(spd.month - (19 * 4.5 + 17.5 * 4.6)) < 1e-9 && spd.costedFills === 3, `this month = only fills with gallons + price ($${spd.month.toFixed(2)})`);
+  ok(Math.abs(spd.last30 - (19 * 4.5 + 17.5 * 4.6)) < 1e-9, 'last 30 days');
+  ok(fillCost(sp.fills[0]) === 72 && fillCost(sp.fills[3]) === null, 'fill cost = gallons × price');
+  addFill(sp, { at: Date.UTC(2026, 9, 24), gallons: null, full: false, pricePerGal: null, total: 40, odometer: null });
+  ok(fillCost(sp.fills[4]) === 40 && Math.abs(spending(sp, nowS, 20).month - (19 * 4.5 + 17.5 * 4.6 + 40)) < 1e-9, 'a pump TOTAL counts even without gallons');
+  ok(spd.mpg != null && Math.abs(spd.mpg - (380 / 19 + 350 / 17.5) / 2) < 1e-9, 'per-mile uses pump-honest mpg between full fills');
+  ok(spd.perMile != null && Math.abs(spd.perMile - ((4.5 + 4.6 + 4.7) / 3) / spd.mpg!) < 1e-9, `cost to drive ≈ $${spd.perMile!.toFixed(3)}/mi`);
+  const early = emptyLogbook();
+  early.calib = 1.1;
+  addFill(early, { at: nowS, gallons: 15, full: true, pricePerGal: 4.4, odometer: null });
+  ok(Math.abs(spending(early, nowS, 22).mpg! - 20) < 1e-9, 'before two full fills: MAF mpg ÷ calibration');
+
+  // the EXPERIMENTAL gauge-cluster fuel probe: 61 29 A → A / 2 litres
+  const fp = FUEL_LEVEL_PROBES[0];
+  ok(fp.rx === '7C8' && decodeProbe(fp, '61 29 64') === 50 && decodeProbe(fp, '61 29 FF') === null && decodeProbe(fp, 'NO DATA') === null, 'meter fuel probe decodes litres, rejects out-of-range + NO DATA');
+}
+
+console.log('\nTRIP SUMMARY STATS (src/lib/mpgLog.ts tripTick)');
+{
+  const lg = emptyLog();
+  tripStart(lg, 0);
+  for (let i = 0; i < 600; i++) tripTick(lg, 1, 40, i % 4 !== 0); // 10 min moving, 75 % eco
+  for (let i = 0; i < 120; i++) tripTick(lg, 1, 0, null); // 2 min idling
+  tripTick(lg, 1, 63, null);
+  tripTick(lg, 3600, 50, true); // a slept gap — ignored
+  const c = lg.current!;
+  ok(c.movingSec === 601 && c.idleSec === 120 && c.maxMph === 63, 'moving / idle time + top speed');
+  ok(Math.abs(ecoShare(c)! - 450 / 600) < 1e-9, 'eco share counts only moving time with an mpg reading');
+  ok(ecoShare({ ...c, scoredSec: 10 }) === null, 'too little scored time → no eco %');
+}
+
+console.log('\nGEAR + PARK (src/lib/gear.ts)');
+{
+  // every gear of the AC60E at a sensible speed, from the nominal driveline
+  const speeds = [10, 18, 28, 38, 45, 60];
+  ok(speeds.every((mph, i) => matchGear(mph * K_NOMINAL * GEAR_RATIOS[i], mph)?.gear === i + 1), 'rpm ÷ mph picks gears 1–6');
+  ok(matchGear(1.08 * 18 * K_NOMINAL * GEAR_RATIOS[1], 18)?.gear === 2, '8 % converter slip in 2nd is still 2nd');
+  ok(matchGear(1580, 30) === null && matchGear(750, 0) === null && matchGear(0, 40) === null, 'between gears / stopped / no rpm → no match (no guessing)');
+  // drive in 4th for a while: shown after the 0.5 s hold; K self-calibrates toward a bigger tire
+  const g = createGearState();
+  let tt = 0;
+  const step = (mph: number | null, rpm: number | null, reverse: boolean | null, ms = 100) => {
+    tt += ms;
+    return gearStep(g, { now: tt, mph, rpm, reverse });
+  };
+  step(40, 40 * 41 * 1.0, false);
+  ok(g.shown !== '4', 'a new gear waits out the hold (no flicker mid-shift)');
+  for (let i = 0; i < 600; i++) step(40, 40 * 41 * 1.0, false); // 41 rpm/mph: e.g. taller tires
+  ok(g.shown === '4' && g.k < K_NOMINAL && g.k > 40.5, `K learns from clean cruise (${g.k.toFixed(2)})`);
+  // stop at a light in D: shows D, not parked
+  for (let i = 0; i < 50; i++) step(0, 720, false);
+  ok(g.shown === 'D' && !g.parked && !summaryPromptDue(g, tt), 'stopped in drive → D, no prompt yet');
+  // shift D → P: passes through R (camera blips), then nothing — Park after the window
+  step(0, 720, true);
+  ok(g.shown === 'R', 'reverse lights R');
+  step(0, 720, false);
+  for (let i = 0; i < REVERSE_TO_PARK_MS / 100 + 2; i++) step(0, 720, false);
+  ok(g.shown === 'P' && g.parked && g.parkSeq === 1 && summaryPromptDue(g, tt), 'R released + no roll → P, prompt due');
+  // drive off: clears; back out of a spot (R → D) must NOT read as park
+  for (let i = 0; i < 20; i++) step(5, 5 * K_NOMINAL * 3.6, false);
+  ok(!g.parked && g.shown !== 'P', 'rolling clears park');
+  step(0, 720, false);
+  step(0, 720, true);
+  step(0, 720, false);
+  for (let i = 0; i < 10; i++) step(3, 900, false); // pulled away forward within a second
+  ok(!g.parked && g.parkSeq === 1, 'R → D (pulling out after reversing) is not park');
+  // engine off while stopped = park; no reverse signal at all → long stop still prompts
+  for (let i = 0; i < 5; i++) step(0, 0, false);
+  ok(g.parked && g.parkSeq === 2, 'engine off while stopped → P');
+  const q = createGearState();
+  gearStep(q, { now: 0, mph: 0, rpm: null, reverse: null });
+  ok(!summaryPromptDue(q, STOP_PROMPT_MS - 1) && summaryPromptDue(q, STOP_PROMPT_MS + 1), 'no park clues → a 1-min stop still offers the summary');
+}
+
+console.log('\nOBD AUTO-CONNECT (src/lib/obdLink.ts)');
+{
+  ok(
+    obdRetryDelayMs(1, 0) === OBD_RETRY_STEPS_MS[0] && obdRetryDelayMs(2, 5000) === OBD_RETRY_STEPS_MS[1] && obdRetryDelayMs(3, 9000) === OBD_RETRY_STEPS_MS[2],
+    `retry ramps ${OBD_RETRY_STEPS_MS.join(' → ')} ms while the dongle wakes`
+  );
+  ok(obdRetryDelayMs(4, 30_000) === OBD_RETRY_STEADY_MS && obdRetryDelayMs(40, 5 * 60_000) === OBD_RETRY_STEADY_MS, 'then settles at the steady cadence');
+  ok(obdRetryDelayMs(80, OBD_RETRY_SLOW_AFTER_MS) === OBD_RETRY_SLOW_MS, 'a long-missing dongle is retried slowly (spares phone BT audio)');
+  ok(obdRetryDelayMs(0, 0) === OBD_RETRY_STEPS_MS[0] && obdRetryDelayMs(NaN as unknown as number, 0) > 0, 'never a zero / NaN delay');
+  ok(OBD_RETRY_STEPS_MS.every((v, i, a) => i === 0 || v > a[i - 1]) && OBD_RETRY_STEADY_MS < OBD_RETRY_SLOW_MS, 'cadence is monotonic');
+
+  const bonded = [
+    { name: 'Pixel 8', address: '11:22:33:44:55:66' },
+    { name: 'vLinker MC-Android', address: '08:04:B4:3F:15:38' },
+    { name: 'OBDII', address: 'AA:BB:CC:DD:EE:FF' },
+  ];
+  ok(pickObdAdapter(bonded, 'aa:bb:cc:dd:ee:ff') === 'AA:BB:CC:DD:EE:FF', 'remembered adapter wins (MAC case-insensitive)');
+  ok(pickObdAdapter(bonded, null) === '08:04:B4:3F:15:38', 'no memory → first OBD-named bonded device');
+  ok(pickObdAdapter(bonded, '00:00:00:00:00:01') === '08:04:B4:3F:15:38', 'remembered adapter unpaired → falls back to an OBD-named one');
+  ok(pickObdAdapter([bonded[0]], null) === null && pickObdAdapter([], 'AA:BB:CC:DD:EE:FF') === null, 'never auto-dials a non-OBD device (a phone)');
+  const ranked = rankObdDevices(bonded);
+  ok(ranked.length === 3 && ranked[2].name === 'Pixel 8', 'picker ranks OBD adapters first, hides nothing');
 }
 
 console.log(`\n${failures === 0 ? '✅ ALL CHECKS PASSED' : `❌ ${failures} CHECK(S) FAILED`}\n`);

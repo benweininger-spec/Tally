@@ -83,7 +83,7 @@ export const SpeedRecord = React.memo(function SpeedRecord({ size }: { size: num
   );
 
   const { time, ampm } = useTelemetry((d) => clockTime(d.system.now), shallowEqual);
-  const fs = Math.max(11, 9 * k);
+  const fs = Math.max(14, 11 * k);
   return (
     <View style={{ width: size, height: size }}>
       <VizSurface width={size} height={size} layers={layers} channel={channel} origin={[cx, cy]} />

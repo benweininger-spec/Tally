@@ -108,6 +108,69 @@ runtime. Web still runs the sim with zero hardware; live mode is native-only.
     trip end). Only miles with OBD fuel flow are *scored*; non-OBD miles are stored but never
     dilute the mpg. Sim uses a separate, never-persisted synthetic 30-day log.
   - `src/lib/dtcDescriptions.ts`: ~94 common 2TR-FE / generic codes + family fallback.
+- ✅ **Truck OBD audit + HOME glances (2026-10-23)** — measured on the truck via the BT library's
+  logcat tap (`docs/DEVICE-MICRONTEK.md` → "OBD on the truck"): 13 PIDs answer; MAP, fuel level,
+  ambient and oil temp are NOT in the 2TR-FE's support mask. So:
+  - HOME gained **ECONOMY** (2 s-smoothed instant mpg on a 0–40 bar, **ECO zone ≥ 21 mpg** = EPA
+    combined for the 2.7 4x2 auto, IDLE + gal/h when stopped, trip / lifetime) and **ENGINE TEMP**
+    (coolant + warm-up bar to 160 °F) — `src/components/HomeGlance.tsx`, rules in pure
+    `src/lib/engineGlance.ts` (shared with the ENGINE coolant arc).
+  - ENGINE's dead tiles swapped for fed ones: OIL → FUEL RATE (gal/h), AMBIENT → AIRFLOW (MAF),
+    MAP → ECU SPEED vs GPS (speedo check), FUEL LEVEL → FUEL USED (session, from MAF). New
+    signals `obd.{fuelRateGph, mafGps, ecuSpeedMph}`.
+  - OBD speed-ups: ELM response-count suffix (`010C1`), unsupported SLOW PIDs no longer eat a
+    slot, SLOW PIDs stay live 15 s / visible 45 s (they blinked to a dash before).
+  - **SET → OBD DIAGNOSTICS**: per-PID OK / NO DATA / NOT ON THIS TRUCK with value + age, the
+    full support mask, adapter banner, protocol, replies/s; plus a `[OBD]` logcat line every 30 s.
+  - `modules/js-keepalive`: a never-ending headless JS task keeps RN timers running while
+    another app (CarPlay, the stock launcher, a permission flash) is in front — verified: 175
+    OBD replies in 20 s with Settings on top. Data tick drops to 2 Hz while hidden.
+  - Fuel integration uses MEASURED dt (the fixed 50 ms under-counted gallons → 29–34 mpg trips)
+    and includes idle fuel. MPG history recorded before 2026-10-23 is inflated.
+- ✅ **Media on the unit (2026-10-23/26)** — the stock Telenav launcher owns the phone's BT music,
+  FM and USB sessions, told apart by session TAG (`docs/DEVICE-MICRONTEK.md`). BLUETOOTH card follows
+  the BT session (verified working); RADIO has ▶ FM / ❚❚, seek, ☆ (the session's own Favorite
+  action), station logo, and favourite tiles from the tuner's queue (skipToQueueItem; HOME only —
+  DRIVE's rail has no room). Factory radio app = `com.microntek.radio`. Logos/art are encoded once
+  and cached in the Kotlin bridge (LRU). Favourites/logos untested on the unit.
+- ✅ **Legibility pass (2026-10-26)** — every literal font ≤ 16 px bumped (floor 15 px), header
+  23 px, ECONOMY trip/lifetime in bold 24 px, signature captions larger; G-Scope readouts moved to
+  the DRIVE card's title row (they collided at 300 px). Immersive sticky mode (`setImmersive` in
+  `modules/sys-controls`, re-applied on resume) hides the unit's top bar, which carries the nav
+  buttons and was drawn OVER our header — untested on the unit; swipe from the edge to reveal.
+
+- ✅ **Logbook + trip summary (2026-10-26)** — pure model `src/lib/logbook.ts` (verify-tested),
+  store `src/data/logbookStore.tsx` (persisted `tacoma-dash:logbook`; SIM has a never-saved demo
+  logbook), UI `src/logbook/*` (big number pad, tap-to-edit fields, date steppers — no Android
+  keyboard except the optional note). Fed by the MPG recorder's own mile / gallon deltas.
+  - **Fuel tank** (HOME card beside HEADING): fuel left + range. The 2TR-FE has no PID 2F, so it's
+    the fill-up estimate — after a FULL fill the tank = 21.1 gal, minus MAF gallons × `calib`
+    (pumped ÷ measured, learned from full→full fills, median of 3, sane range 0.6–1.6). One-tap
+    FILLED UP; fields are PREFILLED with our estimate / last price / est. odometer, and an
+    untouched estimate is saved as "not entered" so it can never calibrate us against ourselves.
+    EXPERIMENTAL gauge-cluster probe (7C0 `2129`, rx 7C8 via ATCRA, litres = A/2) supersedes the
+    estimate if the truck answers — untried on the unit.
+  - **Service** (SET → LOGBOOK, HOME header nudge when due ≤ 500 mi / 30 days): Toyota-guide
+    intervals in `SERVICE_TYPES`; back-logging old service by date; odometer = last entered
+    reading + logged miles (a back-dated entry never rewinds it).
+  - **Trip summary** (`TripSummaryLayer`, any face): on PARK a "TRIP SUMMARY ›" button bottom-centre
+    (2 min); tap → card centred in the bottom half for 20 s (miles, minutes, avg mpg, fuel $, ECO %,
+    idle, top speed, gallons). `Trip` gained movingSec / idleSec / ecoSec / maxMph.
+  - **Spending**: fill-ups take gallons + $/gal OR the pump TOTAL (`FillUp.total`); `spending()` →
+    this month / 30 days / avg price / cost per mile (avg price ÷ pump-honest mpg, else MAF ÷ calib).
+    FUEL tab header + the HOME fuel card's foot line.
+- ✅ **Gear readout + park (2026-10-26)** — `src/lib/gear.ts` (verify-tested) + `src/data/gearStore.tsx`
+  + `GearBadge` (P R D + gear digit in the dial's bottom gap, HOME + DRIVE). Forward gear = rpm ÷ mph
+  against the AC60E ladder (3.6 / 2.09 / 1.488 / 1.0 / 0.687 / 0.58) × K (≈ 43.1, self-learning).
+  REVERSE = the MCU's `report.event` type "backview" (found in the decompiled MicrontekServer —
+  same channel as the verified headlight event; untested on the unit). PARK = reverse released
+  while stopped with no forward roll within 4 s (D→P passes R), or engine off; a 1-min stop is
+  the fallback for the summary prompt. N isn't detectable, so it isn't shown.
+- ✅ **Colour ramps (2026-10-26)** — coolant steps blue → amber at 120 / 140 / 160 °F; economy is
+  green (new `eco` token, ≥ 7:1 by day) at ≥ 21 mpg fading through amber to warn at ≤ 12
+  (`src/theme/glanceColors.ts`). SET → TEXT SIZE no longer greys out silently: tapping it without
+  the "Modify system settings" grant opens the grant page (or grant over adb:
+  `appops set com.benji.tacomadash WRITE_SETTINGS allow`).
 
 ## Run it
 
@@ -152,6 +215,13 @@ source is missing — never an empty gauge. Full write-up: `docs/ARCHITECTURE.md
 - **OBD** talks to a swappable `ObdTransport` (Classic SPP now via
   `react-native-bluetooth-classic`; BLE droppable in later) — same philosophy one
   layer down. ELM327 init + fast/slow PID scheduler in `obd/ObdManager.ts`.
+- **OBD auto-connect:** connect once in SET and the adapter MAC is remembered; from then on
+  `LiveDataSource` dials it by itself and retries with backoff until the dongle wakes
+  (policy in pure `src/lib/obdLink.ts`), kicked by ignition-on (ACC broadcast) and
+  app-foreground. `ObdManager` reports drops (transport event, or 8 commands in a row with
+  no bytes back = stale socket — counted per command, not wall time, because JS freezes
+  while another app is in front) so the source redials. The background loop never shows a permission
+  prompt. Untested on the truck.
 - **Voltage:** live `system.voltage` = OBD PID 42 when the dongle has it, else the head
   unit's own 12V input via `android.microntek.CarManager` ("battery", tenths of a volt —
   `src/data/live/mtcProvider.ts`, `modules/mtc-events`). The old "no Android API" belief
@@ -208,9 +278,13 @@ Data tiers (see `docs/design-brief.md` §3):
    Grip / Trail / Scope from the mockups become *alternate mode faces* later, not
    the default.
 2. **Signature = PulseTach.** Tesla Model S energy-graph model: a scrolling, filled
-   **longitudinal-g waveform** wrapped by a **radial ring** that reads **speed
-   pre-OBD and RPM (with redline) once the dongle connects**. The center number is
-   **always ground speed** (the safety glance); no number is shown twice.
+   trace wrapped by a **radial ring** that reads **speed pre-OBD and RPM (with
+   redline) once the dongle connects**. The center number is **always ground speed**
+   (the safety glance); no number is shown twice. **2026-10-26: the trace is the last
+   minute of RPM (speed when OBD is down)** (was longitudinal g — on the truck it read as jittery noise with no
+   meaning to the driver): read from the always-on drive recorder, 1.5 s box-averaged and
+   drawn as a Catmull-Rom spline (`buildTrace` in `src/lib/pulse.ts`, verify-tested: one
+   new sample moves the curve < 1.5 px), scale changes eased over ~1 s.
 3. **Amber is the shipped theme.** Architecture is themeable; we ship one theme,
    not four.
 4. **SVG now, Skia later.** Milestone 1 renders the signature in `react-native-svg`
@@ -250,6 +324,13 @@ fallback.
   clear, ATF probe, long-term MPG — see Current state); what's left is *validation on the
   truck with the key on*: Mode 04 clear, which ATF probe (if any) answers, the real Mode 03
   frame format, and MAF-derived gallons vs the pump.
+
+**Next with the truck linked:** auto-return to the dash after calls / when the stock launcher pops
+up on Bluetooth connect, and boot order (ZLink should connect first, the dash end up in front) —
+needs the unit's call-state broadcasts + a background-activity-start test (likely
+`appops SYSTEM_ALERT_WINDOW allow`). **Parked ideas (don't clutter until placeable widgets
+exist):** extra PIDs the truck supports — catalyst temp 3C, timing advance 0E, accelerator pedal
+49, commanded AFR 44; a placeable-widgets feature for HOME.
 
 ### Perf model (post-audit, 2026-06 — every new surface MUST follow it)
 `DataSourceProvider` exposes a stable controls context + a subscribe-based telemetry

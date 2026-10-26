@@ -17,6 +17,8 @@ interface NativeTrack {
   positionMs?: number;
   playing?: boolean;
   package?: string;
+  /** MediaSession tag — on this unit it's what tells the launcher's BT / radio / USB apart */
+  tag?: string;
 }
 
 interface MediaBridgeNative {
@@ -30,16 +32,19 @@ interface MediaBridgeNative {
   getSessions(): Promise<NativeTrack[]>;
   getRadio(): Promise<NativeTrack | null>;
   radioTransport(cmd: 'play' | 'pause' | 'next' | 'previous' | 'toggle'): Promise<void>;
+  getRadioPresets?(): Promise<RadioPreset[]>;
+  radioPlayPreset?(id: number): Promise<void>;
+  radioFavorite?(): Promise<boolean>;
   openListenerSettings(): void;
   addListener(event: string, cb: (payload: any) => void): { remove: () => void };
 }
 
-/** Friendly source name for the now-playing card. The FM/AM tuner on this Microntek
- *  unit publishes its MediaSession through the stock Telenav launcher (FACT, on-device),
- *  so that package means "the radio", not Bluetooth. Unknown packages fall back to a
- *  trimmed name rather than the raw id. */
+/** Friendly source name for the now-playing card. The stock Telenav launcher owns THREE
+ *  sessions on this unit (FACT, 2026-10-23) — the phone's Bluetooth music, the FM tuner and
+ *  USB — so for that package the session tag decides, not the package. Unknown packages
+ *  fall back to a trimmed name rather than the raw id. */
 const SOURCE_NAMES: Record<string, string> = {
-  'com.telenav.scout.launcher': 'FM RADIO',
+  'com.telenav.scout.launcher': 'HEAD UNIT',
   'com.microntek.radio': 'FM RADIO',
   'com.microntek.btmusic': 'BLUETOOTH A2DP',
   'com.android.bluetooth': 'BLUETOOTH A2DP',
@@ -51,7 +56,11 @@ const SOURCE_NAMES: Record<string, string> = {
   'au.com.shiftyjelly.pocketcasts': 'POCKET CASTS',
   'com.zjinnova.zlink': 'CARPLAY',
 };
-export function sourceLabel(pkg?: string | null): string {
+export function sourceLabel(pkg?: string | null, tag?: string | null): string {
+  const tg = (tag ?? '').toLowerCase();
+  if (tg.includes('bluetooth')) return 'BLUETOOTH';
+  if (tg.includes('radio')) return 'FM RADIO';
+  if (tg.includes('localmedia')) return 'USB / LOCAL';
   if (!pkg) return 'BLUETOOTH A2DP';
   if (SOURCE_NAMES[pkg]) return SOURCE_NAMES[pkg];
   const tail = pkg.split('.').filter((x) => !['com','android','org','net','app','apps','free'].includes(x)).pop() ?? pkg;
@@ -79,8 +88,17 @@ function toNowPlaying(t: NativeTrack): NowPlaying {
     isPlaying: t.playing ?? false,
     positionMs: t.positionMs ?? 0,
     durationMs: t.durationMs ?? 0,
-    source: sourceLabel(t.package),
+    source: sourceLabel(t.package, t.tag),
   };
+}
+
+/** One of the tuner's favourites (its session queue) — logo when the unit provides one. */
+export interface RadioPreset {
+  id: number;
+  title: string;
+  subtitle: string;
+  art: string | null;
+  active: boolean;
 }
 
 export interface MediaState {
@@ -94,6 +112,7 @@ export interface MediaState {
 export class MediaBridgeProvider {
   private subs: { remove: () => void }[] = [];
   private current: NowPlaying | null = null;
+  private poll: ReturnType<typeof setInterval> | null = null;
 
   start(): void {
     const m = mod();
@@ -111,11 +130,17 @@ export class MediaBridgeProvider {
       })
     );
     void this.refresh();
+    // the native side follows ONE session's callbacks; a different session starting (phone
+    // music resuming while the radio was shown, an app taking over) isn't an event, so
+    // re-read every 3 s — a cheap binder call, and paused with the app in the background
+    this.poll = setInterval(() => void this.refresh(), 3000);
   }
 
   stop(): void {
     this.subs.forEach((s) => s.remove());
     this.subs = [];
+    if (this.poll) clearInterval(this.poll);
+    this.poll = null;
   }
 
   async refresh(): Promise<void> {
@@ -175,6 +200,29 @@ export class MediaBridgeProvider {
   }
   radioSeek(dir: 1 | -1) {
     void mod()?.radioTransport(dir > 0 ? 'next' : 'previous');
+  }
+  /** play/pause the tuner session — PLAY is how the unit switches its audio to FM */
+  radioToggle() {
+    void mod()?.radioTransport('toggle');
+  }
+  async radioPresets(): Promise<RadioPreset[]> {
+    const m = mod();
+    if (!m?.getRadioPresets || !this.hasAccess()) return [];
+    try {
+      return (await m.getRadioPresets()) ?? [];
+    } catch {
+      return [];
+    }
+  }
+  radioPlayPreset(id: number) {
+    void mod()?.radioPlayPreset?.(id);
+  }
+  async radioFavorite(): Promise<boolean> {
+    try {
+      return (await mod()?.radioFavorite?.()) ?? false;
+    } catch {
+      return false;
+    }
   }
 
   getSnapshot(): MediaState {

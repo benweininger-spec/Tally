@@ -87,8 +87,8 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 24, height: 132 },
   carplay: { flex: 1.6, borderWidth: 1, borderRadius: 6, justifyContent: 'center', paddingHorizontal: 26 },
   cpTitle: { fontFamily: 'Oxanium', fontSize: 26, fontWeight: '700' },
-  cpSub: { fontFamily: 'JetBrains Mono', fontSize: 13, letterSpacing: 2 },
+  cpSub: { fontFamily: 'JetBrains Mono', fontSize: 16, letterSpacing: 2 },
   tile: { flex: 1, borderWidth: 1, borderRadius: 6, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
   tileText: { fontFamily: 'JetBrains Mono', fontSize: 17, letterSpacing: 3 },
-  tileSub: { fontFamily: 'JetBrains Mono', fontSize: 11, letterSpacing: 1, marginTop: 6 },
+  tileSub: { fontFamily: 'JetBrains Mono', fontSize: 15, letterSpacing: 1, marginTop: 6 },
 });

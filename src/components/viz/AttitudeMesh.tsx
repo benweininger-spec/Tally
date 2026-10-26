@@ -69,7 +69,7 @@ export const AttitudeMesh = React.memo(function AttitudeMesh({ width, height }: 
     [source, channel, width, height]
   );
 
-  const fs = Math.max(12, 10 * k);
+  const fs = Math.max(15, 12 * k);
   return (
     <View style={{ width, height }}>
       <VizSurface width={width} height={height} layers={layers} channel={channel} />

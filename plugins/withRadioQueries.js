@@ -8,7 +8,7 @@
  */
 const { withAndroidManifest } = require('@expo/config-plugins');
 
-const PACKAGES = ['com.syu.radio', 'com.syu.carradio', 'com.fyt.radio'];
+const PACKAGES = ['com.microntek.radio', 'com.syu.radio', 'com.syu.carradio', 'com.fyt.radio'];
 
 module.exports = function withRadioQueries(config) {
   return withAndroidManifest(config, (cfg) => {

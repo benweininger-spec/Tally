@@ -1,7 +1,7 @@
 /**
  * ENGINE face — FUEL ECONOMY card: INSTANT (live), TRIP AVG and LIFETIME (from the
  * long-term log), a 30-day ridgeline (days without scored miles gap the line), best /
- * worst day, and the last five trips.
+ * worst day, and the last four trips.
  *
  * Perf: INSTANT selects one integer from telemetry; everything else comes from
  * `useMpgLog` — the MPG store notifies at most once a second, and the summary is a
@@ -14,6 +14,7 @@ import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg'
 import { shallowEqual, useTelemetry } from '../../data/DataSourceProvider';
 import { useMpgLog } from '../../data/mpgLogStore';
 import { useTheme } from '../../theme/ThemeProvider';
+import { economyColor } from '../../theme/glanceColors';
 import { has } from '../../data/types';
 import { bestWorstDay, last30, lifetimeMpg, runs, tripMpg, type MpgLog } from '../../lib/mpgLog';
 import { buildWaveform } from '../../lib/pulse';
@@ -36,7 +37,7 @@ interface Summary {
 
 function summarize(log: MpgLog, now: number): Summary {
   const bw = bestWorstDay(log);
-  const recent = log.trips.slice(-5).reverse();
+  const recent = log.trips.slice(-4).reverse(); // 4 rows fit at the larger text size
   return {
     trip: f1(log.current ? tripMpg(log.current) : null),
     lifetime: f1(lifetimeMpg(log)),
@@ -61,7 +62,7 @@ const Instant = React.memo(function Instant() {
   return (
     <View>
       <Text style={[s.k, { color: v == null ? t.absent : t.textFaint }]}>INSTANT</Text>
-      <Text style={[s.big, { color: v == null ? t.absent : t.accent }]}>
+      <Text style={[s.big, { color: v == null ? t.absent : economyColor(t, v) }]}>
         {v == null ? '—' : v}
         {v != null && <Text style={[s.unit, { color: t.textDim }]}> mpg</Text>}
       </Text>
@@ -185,15 +186,15 @@ export const MpgCard = React.memo(function MpgCard() {
 
 const s = StyleSheet.create({
   stats: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 10 },
-  k: { fontFamily: 'JetBrains Mono', fontSize: 13, letterSpacing: 2 },
+  k: { fontFamily: 'JetBrains Mono', fontSize: 16, letterSpacing: 2 },
   big: { fontFamily: 'Oxanium', fontSize: 64, fontWeight: '700', lineHeight: 70 },
   unit: { fontFamily: 'Oxanium', fontSize: 22, fontWeight: '600' },
   mid: { fontFamily: 'Oxanium', fontSize: 38, fontWeight: '700' },
-  unitSm: { fontFamily: 'Oxanium', fontSize: 16, fontWeight: '600' },
+  unitSm: { fontFamily: 'Oxanium', fontSize: 19, fontWeight: '600' },
   ridgeEmpty: { height: RIDGE_H + 22, borderWidth: 1, borderStyle: 'dashed', borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
   ridgeAxis: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 },
   bw: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
   trips: { borderTopWidth: 1, marginTop: 10, paddingTop: 8 },
   tripLine: { flexDirection: 'row' },
-  tripRow: { fontFamily: 'JetBrains Mono', fontSize: 15, letterSpacing: 1, lineHeight: 23 },
+  tripRow: { fontFamily: 'JetBrains Mono', fontSize: 18, letterSpacing: 1, lineHeight: 23 },
 });

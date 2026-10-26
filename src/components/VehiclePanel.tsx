@@ -106,10 +106,10 @@ function Cell({ s, t, reveal, delay }: { s: Stat; t: Theme; reveal: number; dela
 
 const styles = StyleSheet.create({
   card: { borderWidth: 1, borderRadius: 8, padding: 24 },
-  title: { fontFamily: 'JetBrains Mono', fontSize: 14, letterSpacing: 4, marginBottom: 16 },
+  title: { fontFamily: 'JetBrains Mono', fontSize: 17, letterSpacing: 4, marginBottom: 16 },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   cell: { width: '50%', marginBottom: 18 },
   value: { fontFamily: 'Oxanium', fontSize: 38, fontWeight: '700' },
-  label: { fontFamily: 'JetBrains Mono', fontSize: 12, letterSpacing: 2 },
-  footer: { fontFamily: 'JetBrains Mono', fontSize: 12, letterSpacing: 2, marginTop: 4 },
+  label: { fontFamily: 'JetBrains Mono', fontSize: 15, letterSpacing: 2 },
+  footer: { fontFamily: 'JetBrains Mono', fontSize: 15, letterSpacing: 2, marginTop: 4 },
 });

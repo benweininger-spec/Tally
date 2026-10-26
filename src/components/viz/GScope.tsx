@@ -18,7 +18,10 @@ import { VizSurface } from './VizSurface';
 import { VizLabel, useVizLoop } from './common';
 import { createVizChannel, dot, type VizLayer } from './vizTypes';
 
-export const GScope = React.memo(function GScope({ size }: { size: number }) {
+/** Readouts drawn by the host instead (small cards): receives { g, peak } on change. */
+export type GReadout = { g: string; peak: string };
+
+export const GScope = React.memo(function GScope({ size, onReadout }: { size: number; onReadout?: (r: GReadout) => void }) {
   const t = useTheme();
   const channel = useMemo(createVizChannel, []);
   const cx = size / 2;
@@ -45,6 +48,7 @@ export const GScope = React.memo(function GScope({ size }: { size: number }) {
   );
 
   const [readout, setReadout] = useState({ g: '—', peak: '0.00' });
+  const lastReadout = useRef(readout);
   const seen = useRef(-1);
   const lastText = useRef(0);
 
@@ -74,13 +78,19 @@ export const GScope = React.memo(function GScope({ size }: { size: number }) {
         lastText.current = now;
         const g = r.gLive ? Math.hypot(r.lat, r.long).toFixed(2) : '—';
         const peak = envelopePeak(r.env).toFixed(2);
-        setReadout((cur) => (cur.g === g && cur.peak === peak ? cur : { g, peak }));
+        const cur = lastReadout.current;
+        if (cur.g !== g || cur.peak !== peak) {
+          const next = { g, peak };
+          lastReadout.current = next;
+          setReadout(next);
+          onReadout?.(next); // from the loop, not a state updater (no cross-render update)
+        }
       }
     },
-    [channel, cx, cy, S, k]
+    [channel, cx, cy, S, k, onReadout]
   );
 
-  const fs = Math.max(11, 10 * k);
+  const fs = Math.max(15, 12 * k);
   const dim = t.textFaint;
   const edge = SCOPE_RINGS[SCOPE_RINGS.length - 1] * S;
   return (
@@ -97,13 +107,18 @@ export const GScope = React.memo(function GScope({ size }: { size: number }) {
         <VizLabel x={cx} y={cy + edge + fs * 0.6} size={fs} color={dim} align="center">BRAKE</VizLabel>
         <VizLabel x={cx - edge - fs * 1.2} y={cy - fs * 0.7} size={fs} color={dim} align="center">L</VizLabel>
         <VizLabel x={cx + edge + fs * 1.2} y={cy - fs * 0.7} size={fs} color={dim} align="center">R</VizLabel>
-        {/* readouts in the top corners: clear of the BRAKE / L / R captions at any size */}
-        <VizLabel x={0} y={fs * 0.2} size={fs} color={dim}>
-          PEAK {readout.peak}G
-        </VizLabel>
-        <VizLabel x={size} y={0} size={fs * 2} color={t.text} align="right" mono={false}>
-          {readout.g === '—' ? '—' : `${readout.g}g`}
-        </VizLabel>
+        {/* readouts in the top corners (full-size scope); a small host card shows them
+            in its own title row instead — at 300 px they can't clear ACCEL / BRAKE */}
+        {!onReadout && (
+          <>
+            <VizLabel x={0} y={fs * 0.2} size={fs} color={dim}>
+              PEAK {readout.peak}G
+            </VizLabel>
+            <VizLabel x={size} y={0} size={fs * 2} color={t.text} align="right" mono={false}>
+              {readout.g === '—' ? '—' : `${readout.g}g`}
+            </VizLabel>
+          </>
+        )}
       </View>
     </Pressable>
   );

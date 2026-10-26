@@ -33,8 +33,10 @@ export const absent = <T>(): Signal<T> => ({ value: null, status: 'absent', upda
 export const live = <T>(value: T, at = Date.now()): Signal<T> => ({ value, status: 'live', updatedAt: at });
 
 /** Convenience: is there a usable value right now? */
-export const has = <T>(s: Signal<T>): s is Signal<T> & { value: T } =>
-  s.status !== 'absent' && s.value !== null;
+// tolerates a missing field (an older snapshot shape) instead of throwing — we're the
+// launcher, so a render crash would leave the driver on a blank home screen
+export const has = <T>(s: Signal<T> | undefined): s is Signal<T> & { value: T } =>
+  s != null && s.status !== 'absent' && s.value !== null;
 
 // ----------------------------------------------------------------------------
 // Tier A — GPS + onboard sensors + system (live today, zero hardware)
@@ -135,6 +137,12 @@ export interface ObdData {
   ecuVolts: Signal<number>;
   /** EXPERIMENTAL Toyota ATF temperature (°F) — absent unless a probe answered */
   transTempF: Signal<number>;
+  /** fuel burn (gal/h) from MAF — the one economy number that works at idle */
+  fuelRateGph: Signal<number>;
+  /** mass air flow (g/s), raw */
+  mafGps: Signal<number>;
+  /** the ECU's own vehicle speed (PID 0D) in mph — compare with GPS for speedo error */
+  ecuSpeedMph: Signal<number>;
   /**
    * Last completed 0–60 mph time (s). OPTIONAL + absent by default (live: GPS-armed,
    * holds a value after a run). Rendered by the ENGINE face's 0–60 tile.

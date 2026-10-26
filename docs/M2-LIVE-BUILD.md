@@ -137,7 +137,13 @@ input and it isn't on CAN. (The sim still shows a Tier-A voltage; that's sim-onl
    Bluetooth **Classic**; PIN is usually `1234`/`0000`).
 2. In-app **SET → OBD2 ADAPTER → FIND PAIRED**, tap your adapter (or **CONNECT** to
    use the first OBD-named one). Connecting by MAC means no scan and **no location
-   prompt**.
+   prompt**. **Only needed once:** the adapter's MAC is remembered (`tacoma-dash:obdMac`)
+   and the live source auto-connects on launch, then keeps retrying (2 → 4 → 8 s, then
+   every 15 s; every 60 s after 10 min) until the dongle answers. Ignition-on (Microntek
+   `com.microntek.acc`) and the launcher returning to the foreground retry immediately; a
+   link where 8 commands in a row get no bytes back (stale socket after the unit slept) is dropped and
+   redialed. SET shows the state on the AUTO-CONNECT line. **DISCONNECT OBD** pauses it
+   until CONNECT or the next ignition-on. Policy + tests: `src/lib/obdLink.ts`.
 3. On connect: the ring switches **speed → RPM (with redline)**, the vehicle panel
    fills with engine data, `system.voltage` lights up, and instant/avg MPG + a crude
    HP/torque estimate + DTC count appear. The center number stays **GPS ground

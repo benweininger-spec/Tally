@@ -6,17 +6,23 @@
  * A renderer only pushes new geometry when that string changes, so parked ≈ no work.
  */
 import type { DashboardData } from '../../data/types';
-import { clamp } from '../../lib/pulse';
+import { buildTrace, clamp, type Trace } from '../../lib/pulse';
+import { readRecord, RECORDER_SLOTS, type DriveRecorder } from '../../lib/driveRecorder';
 import { bootSweep, connectSweep, type SweepFrame } from '../../lib/sweep';
 import { activeSweep, endSweep } from './sweepChannel';
 
 export const RPM_FULL = 5500;
 export const REDLINE_RPM = 4700;
 export const SPEED_FULL = 80;
-export const WAVE_RANGE_G = 0.4; // real 2TR-FE street g fills the trace; was 0.55 (sim-tuned)
-export const WAVE_SAMPLES = 100; // decimated from HISTORY_LEN=240 — visually identical at ~720px
 export const LOOP_MS = 40; // ~25 fps cap
-export const CAPTION = 'DRIVE PULSE · LONGITUDINAL G';
+/**
+ * The trace inside the ring is the last minute of RPM while OBD is live, SPEED without it
+ * (it was longitudinal g — on the truck that read as jittery noise with no meaning to the
+ * driver, 2026-10-26). Smoothed (1.5 s box average) and drawn as a spline, so it rolls
+ * like a wave.
+ */
+export const CAPTION_RPM = 'RPM · LAST MINUTE';
+export const CAPTION = 'SPEED · LAST MINUTE';
 export const BOOT_CAPTION = 'INSTRUMENTS ONLINE · 2TR-FE';
 
 /** Smoothed display values, mutated in place by stepPulse (never trigger renders). */
@@ -24,34 +30,70 @@ export interface PulseDisp {
   speed: number;
   rpm: number;
   frac: number;
-  longG: number;
   obdLive: boolean;
   /** the moment frame being shown (null = normal follower display) */
   moment: SweepFrame | null;
 }
 
-export const createPulseDisp = (): PulseDisp => ({ speed: 0, rpm: 0, frac: 0, longG: 0, obdLive: false, moment: null });
+export const createPulseDisp = (): PulseDisp => ({ speed: 0, rpm: 0, frac: 0, obdLive: false, moment: null });
 
-/** Even-sample a buffer down to `target` points, always keeping first + newest. */
-export function decimate(arr: number[], target: number): number[] {
-  const n = arr.length;
-  if (n <= target) return arr;
-  const out: number[] = [];
-  const stepF = (n - 1) / (target - 1);
-  for (let i = 0; i < target; i++) out.push(arr[Math.round(i * stepF)]);
-  return out;
+/** Reusable buffers + the last drawn trace (no per-frame allocation of the ring copy). */
+export interface TraceState {
+  speeds: Float32Array;
+  rpms: Float32Array;
+  version: number;
+  trace: Trace | null;
+  /** eased full scale — crossing 54 mph re-scales over ~1 s instead of snapping */
+  top: number | null;
+  /** what the trace shows: RPM while OBD is live, else speed */
+  kind: 'rpm' | 'speed';
+}
+export const createTraceState = (): TraceState => ({
+  speeds: new Float32Array(RECORDER_SLOTS),
+  rpms: new Float32Array(RECORDER_SLOTS),
+  version: -1,
+  trace: null,
+  top: null,
+  kind: 'speed',
+});
+
+/**
+ * Rebuild the speed trace from the always-on drive recorder (so it's already a minute
+ * deep when HOME appears). Returns true only when the drawn curve actually changed —
+ * parked, the flat line repeats and nothing is pushed.
+ */
+export function stepTrace(st: TraceState, rec: DriveRecorder, box: { x: number; y: number; width: number; height: number }): boolean {
+  if (rec.version === st.version && st.trace) return false;
+  st.version = rec.version;
+  const n = readRecord(rec, st.speeds, st.rpms);
+  const kind = n > 0 && Number.isFinite(st.rpms[n - 1]) ? 'rpm' : 'speed';
+  if (kind !== st.kind) {
+    st.kind = kind;
+    st.top = null; // new units: start the scale fresh
+  }
+  const tr = buildTrace({
+    samples: kind === 'rpm' ? st.rpms : st.speeds, // NaN (no OBD yet) reads as 0
+    count: n,
+    ...box,
+    top: st.top ?? undefined,
+    ...(kind === 'rpm' ? { scaleMin: 3000, scaleStep: 1000 } : null),
+  });
+  // ~1 s ease at the recorder's 20 Hz; snap when within a hair so parked goes static
+  st.top = st.top == null ? tr.want : Math.abs(tr.want - st.top) < 0.05 ? tr.want : st.top + (tr.want - st.top) * 0.1;
+  if (st.trace && st.trace.line === tr.line) return false;
+  st.trace = tr;
+  return true;
 }
 
 /**
  * Advance one frame toward the latest snapshot. `now` in performance-clock ms, `dt`
  * in seconds. Returns the quantized signature — unchanged means nothing visible moved.
  */
-export function stepPulse(disp: PulseDisp, s: DashboardData, longGHist: number[], now: number, dt: number): string {
+export function stepPulse(disp: PulseDisp, s: DashboardData, now: number, dt: number): string {
   const obdLive = s.obd.connected && s.obd.rpm.status !== 'absent' && s.obd.rpm.value != null;
   const speedT = s.motion.speedMph.value ?? 0;
   const rpmT = obdLive ? (s.obd.rpm.value as number) : 0;
   const fracT = obdLive ? clamp(rpmT / RPM_FULL, 0, 1) : clamp(speedT / SPEED_FULL, 0, 1);
-  const longGT = s.motion.longG.value ?? 0;
 
   // a signature moment (boot / OBD-connect sweep) overrides the follower while its
   // timeline runs; afterwards the follower glides on from where it left off
@@ -78,13 +120,11 @@ export function stepPulse(disp: PulseDisp, s: DashboardData, longGHist: number[]
     disp.rpm += (rpmT - disp.rpm) * (1 - Math.exp(-dt / 0.12));
     disp.frac += (fracT - disp.frac) * (1 - Math.exp(-dt / 0.18));
   }
-  disp.longG += (longGT - disp.longG) * (1 - Math.exp(-dt / 0.08));
   disp.obdLive = obdLive;
 
-  const newest = longGHist.length ? longGHist[longGHist.length - 1] : 0;
   return (
     `${obdLive ? 1 : 0}|${Math.round(disp.speed)}|${Math.round(disp.rpm / 20)}` +
-    `|${Math.round(disp.frac * 400)}|${Math.round(disp.longG * 200)}|${Math.round(newest * 200)}` +
+    `|${Math.round(disp.frac * 400)}` +
     (moment ? `|${Math.round((moment.caption ?? -1) * 40)}|${Math.round((moment.redline ?? -1) * 20)}` : '')
   );
 }
@@ -92,7 +132,7 @@ export function stepPulse(disp: PulseDisp, s: DashboardData, longGHist: number[]
 /** Caption text for the current frame (the boot caption types in during the sweep). */
 export function captionFor(disp: PulseDisp): string {
   const c = disp.moment?.caption;
-  return c != null ? BOOT_CAPTION.slice(0, Math.ceil(c * BOOT_CAPTION.length)) : CAPTION;
+  return c != null ? BOOT_CAPTION.slice(0, Math.ceil(c * BOOT_CAPTION.length)) : disp.obdLive ? CAPTION_RPM : CAPTION;
 }
 
 /** Redline-zone stroke opacity (ignites during the connect moment). */

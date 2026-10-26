@@ -51,7 +51,7 @@ export const ConnectMoment = React.memo(function ConnectMoment({ size }: { size:
       numberOfLines={1}
       style={[
         styles.ticker,
-        { top: size * 0.83, width: size, fontSize: Math.max(13, size * 0.021), color: t.accentSoft, opacity: op },
+        { top: size * 0.885, width: size, fontSize: Math.max(16, size * 0.025), color: t.accentSoft, opacity: op },
       ]}
     >
       {ticker}

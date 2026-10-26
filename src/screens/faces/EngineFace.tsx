@@ -1,6 +1,6 @@
 import React from 'react';
 import { View } from 'react-native';
-import { CoolantCard, LoadThrottleCard, OilTile, RpmCard } from '../../components/engine/EngineHero';
+import { CoolantCard, FuelRateTile, LoadThrottleCard, RpmCard } from '../../components/engine/EngineHero';
 import { EngineGrid } from '../../components/engine/EngineGrid';
 import { MpgCard } from '../../components/engine/MpgCard';
 import { CheckEngineCard } from '../../components/engine/CheckEngineCard';
@@ -23,7 +23,7 @@ export const EngineFace = React.memo(function EngineFace() {
         <RpmCard />
         <CoolantCard />
         <LoadThrottleCard />
-        <OilTile />
+        <FuelRateTile />
       </View>
 
       <View style={{ position: 'absolute', left: 672, top: TOP, width: 600, height: H }}>

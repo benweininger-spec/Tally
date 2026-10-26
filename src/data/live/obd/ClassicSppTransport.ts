@@ -12,6 +12,7 @@
  * requested at runtime in requestBluetoothPermissions() below.
  */
 import { PermissionsAndroid, Platform } from 'react-native';
+import { rankObdDevices } from '../../../lib/obdLink';
 import type { ObdDevice, ObdTransport, TransportStatus } from './transport';
 
 // Loaded lazily so the module is only resolved when OBD is actually used.
@@ -36,15 +37,18 @@ export async function requestBluetoothPermissions(): Promise<boolean> {
   return Object.values(res).every((v) => v === PermissionsAndroid.RESULTS.GRANTED);
 }
 
-const OBD_NAME = /OBD|ELM|VLINK|VIECAR|VEEPEAK|OBDII|SCAN|VGATE/i;
+/** Silent check (no dialog) — the auto-connect loop must never pop a permission prompt. */
+export async function hasBluetoothPermission(): Promise<boolean> {
+  if (Platform.OS !== 'android') return true;
+  if (typeof Platform.Version === 'number' && Platform.Version < 31) return true;
+  return PermissionsAndroid.check('android.permission.BLUETOOTH_CONNECT' as any);
+}
 
 /** All bonded devices, with likely OBD adapters sorted first so the picker is easy.
  *  (Clone names are inconsistent, so we never hide devices — just rank them.) */
 export async function listBondedObdDevices(): Promise<ObdDevice[]> {
   const bonded = await bt().getBondedDevices();
-  return (bonded as any[])
-    .map((d) => ({ name: d.name ?? '', address: d.address ?? d.id }))
-    .sort((a, b) => Number(OBD_NAME.test(b.name)) - Number(OBD_NAME.test(a.name)));
+  return rankObdDevices((bonded as any[]).map((d) => ({ name: d.name ?? '', address: d.address ?? d.id })));
 }
 
 export class ClassicSppTransport implements ObdTransport {
@@ -57,14 +61,26 @@ export class ClassicSppTransport implements ObdTransport {
   private frameCbs = new Set<(f: string) => void>();
   private discCbs = new Set<() => void>();
 
-  /** @param address bonded MAC of the dongle (preferred), else first OBD-named device. */
-  constructor(private readonly address?: string) {}
+  /**
+   * @param address bonded MAC of the dongle (preferred), else first OBD-named device.
+   * @param opts.interactive false = background auto-connect: check permission silently
+   *   instead of prompting (default true — a tap in SET may show the dialog).
+   */
+  constructor(
+    private readonly address?: string,
+    private readonly opts: { interactive?: boolean } = {}
+  ) {}
+
+  /** MAC of the open link (null when not connected) — remembered for auto-connect. */
+  get linkAddress(): string | null {
+    return this.connectedAddress;
+  }
 
   async connect(): Promise<void> {
     if (this.status === 'connected') return;
     this.status = 'connecting';
     try {
-      const ok = await requestBluetoothPermissions();
+      const ok = this.opts.interactive === false ? await hasBluetoothPermission() : await requestBluetoothPermissions();
       if (!ok) throw new Error('Bluetooth permission denied');
 
       let address = this.address;

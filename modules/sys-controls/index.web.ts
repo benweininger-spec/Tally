@@ -27,3 +27,4 @@ export async function openBluetoothSettings(): Promise<void> {}
 export async function openWifiSettings(): Promise<void> {}
 
 export function setFontScale(_scale: number): void {}
+export function setImmersive(_on: boolean): void {}

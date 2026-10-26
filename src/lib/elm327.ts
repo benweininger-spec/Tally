@@ -296,6 +296,10 @@ export interface RawProbe {
   /** reply bytes preceding the data, e.g. 61 82 for request 21 82 */
   prefix: readonly number[];
   decode: (data: number[]) => number;
+  /** reply CAN id to listen on (ATCRA) when it isn't in the ELM's default 7E8–7EF window */
+  rx?: string;
+  /** plausible decoded range (default ATF_RANGE_C) */
+  range?: readonly [number, number];
 }
 
 export const TRANS_TEMP_PROBES: readonly RawProbe[] = [
@@ -306,6 +310,20 @@ export const TRANS_TEMP_PROBES: readonly RawProbe[] = [
 
 /** Plausible ATF range (°C); anything outside means the candidate isn't ATF temp. */
 export const ATF_RANGE_C: readonly [number, number] = [-30, 160];
+
+/** 3rd-gen Tacoma fuel tank: 21.1 US gal. */
+export const TACOMA_TANK_L = 79.9;
+
+/**
+ * EXPERIMENTAL fuel level. The 2016 2TR-FE ECM doesn't list standard PID 2F (FACT,
+ * support mask 2026-10-23); Toyotas usually report the tank from the COMBINATION METER
+ * (request 7C0, reply 7C8 — outside the ELM's default receive window, hence `rx`).
+ * Candidate: Mode 21 PID 29 → litres = A / 2 (the common Toyota scan-tool mapping).
+ * Read-only; untried on the truck.
+ */
+export const FUEL_LEVEL_PROBES: readonly RawProbe[] = [
+  { id: 'meter-21-29', header: '7C0', rx: '7C8', cmd: '2129', prefix: [0x61, 0x29], decode: (b) => b[0] / 2, range: [0, TACOMA_TANK_L * 1.1] },
+];
 export const DEFAULT_HEADER = '7DF';
 
 /** Decode a probe's raw reply to °C, or null if missing / malformed / implausible. */
@@ -313,7 +331,8 @@ export function decodeProbe(p: RawProbe, raw: string): number | null {
   const data = parseResponse(raw, p.prefix);
   if (!data || data.length < 1) return null;
   const v = p.decode(data);
-  return Number.isFinite(v) && v >= ATF_RANGE_C[0] && v <= ATF_RANGE_C[1] ? v : null;
+  const [lo, hi] = p.range ?? ATF_RANGE_C;
+  return Number.isFinite(v) && v >= lo && v <= hi ? v : null;
 }
 
 // ---- PID-support bitmask (00 / 20 / 40 ...) --------------------------------

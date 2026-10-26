@@ -170,10 +170,10 @@ export const signed = (v: number) => (v >= 0 ? '+' : '−') + Math.abs(Math.roun
 
 const styles = StyleSheet.create({
   card: { borderWidth: 1, borderRadius: 8, padding: 16, alignItems: 'center' },
-  title: { fontFamily: 'JetBrains Mono', fontSize: 14, letterSpacing: 4, alignSelf: 'flex-start', marginBottom: 6 },
+  title: { fontFamily: 'JetBrains Mono', fontSize: 17, letterSpacing: 4, alignSelf: 'flex-start', marginBottom: 6 },
   readouts: { flexDirection: 'row', justifyContent: 'space-around', width: '100%', marginTop: 4 },
   readout: { alignItems: 'center' },
-  rLabel: { fontFamily: 'JetBrains Mono', fontSize: 12, letterSpacing: 2 },
+  rLabel: { fontFamily: 'JetBrains Mono', fontSize: 15, letterSpacing: 2 },
   rValue: { fontFamily: 'Oxanium', fontSize: 34, fontWeight: '700' },
-  gLabel: { fontFamily: 'JetBrains Mono', fontSize: 11, letterSpacing: 2, alignSelf: 'flex-start', marginTop: 10 },
+  gLabel: { fontFamily: 'JetBrains Mono', fontSize: 15, letterSpacing: 2, alignSelf: 'flex-start', marginTop: 10 },
 });

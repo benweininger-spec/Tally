@@ -15,6 +15,8 @@
  * Native only: the DataSourceProvider dynamic-imports this on native + live mode,
  * so none of the native deps reach the web bundle.
  */
+import { AppState } from 'react-native';
+import { startKeepAlive, stopKeepAlive } from '../../../modules/js-keepalive';
 import { absent, live } from '../types';
 import type { DashboardData, DataSource, History, NowPlaying, Signal } from '../types';
 import { celsiusToFahrenheit, kmhToMph } from '../../lib/units';
@@ -27,26 +29,37 @@ import {
   estTorqueLbFt,
   initFuelAccum,
   initZeroSixty,
+  gallonsPerHour,
   instantMpg,
   zeroSixtyStep,
   type FuelAccum,
   type ZeroSixtyState,
 } from '../../lib/derive';
-import { PIDS } from '../../lib/elm327';
-import { loadCalibration, saveCalibration } from '../settings';
+import { PIDS, TACOMA_TANK_L } from '../../lib/elm327';
+import { loadCalibration, loadObdMac, saveCalibration, saveObdMac } from '../settings';
+import { OBD_RETRY_SLOW_MS, obdRetryDelayMs, pickObdAdapter } from '../../lib/obdLink';
+import { emaStep } from '../../lib/engineGlance';
 import { LocationProvider } from './locationProvider';
 import { SensorProvider } from './sensorProvider';
-import { MediaBridgeProvider } from './mediaBridge';
+import { MediaBridgeProvider, type RadioPreset } from './mediaBridge';
 import { MtcProvider } from './mtcProvider';
 import { ConnectivityProvider } from './connectivityProvider';
-import { ObdManager, type Reading } from './obd/ObdManager';
-import { ClassicSppTransport, listBondedObdDevices } from './obd/ClassicSppTransport';
+import { ObdManager, type ObdDiagnostics, type Reading } from './obd/ObdManager';
+import { ClassicSppTransport, hasBluetoothPermission, listBondedObdDevices } from './obd/ClassicSppTransport';
 import type { ObdDevice } from './obd/transport';
 
+const BACKGROUND_TICK_MS = 500;
+const FUEL_DT_CAP_MS = 2000; // longest gap integrated as one fuel step
 const HISTORY_LEN = 240; // matches SimulatedDataSource so the signature reads identically
 const round = (v: number) => Math.round(v);
 const round1 = (v: number) => Math.round(v * 10) / 10;
 const round2 = (v: number) => Math.round(v * 100) / 100;
+
+/**
+ * OBD auto-connect state for SET: `off` = paused by DISCONNECT OBD; `waiting` = between
+ * attempts; `no-adapter` / `no-permission` = waiting on something the driver must do once.
+ */
+export type ObdAutoState = 'off' | 'connected' | 'connecting' | 'waiting' | 'no-adapter' | 'no-permission';
 
 /** Per-tier status the settings sheet shows. */
 export interface LiveStatus {
@@ -56,6 +69,13 @@ export interface LiveStatus {
   obdConnected: boolean;
   /** Bluetooth name of the connected OBD adapter (for the connect ticker) */
   obdAdapterName: string | null;
+  obdAuto: ObdAutoState;
+  /** ms until the next auto-connect attempt, when one is scheduled */
+  obdRetryInMs: number | null;
+  /** why the last attempt failed (shown under the auto-connect line) */
+  obdLastError: string | null;
+  /** the remembered adapter MAC auto-connect targets */
+  obdSavedMac: string | null;
   mediaAvailable: boolean;
   mediaAccess: boolean;
 }
@@ -78,8 +98,17 @@ export interface LiveControls {
   /** the unit's FM/AM tuner session, when it publishes one */
   getRadio(): Promise<NowPlaying | null>;
   radioSeek(dir: 1 | -1): void;
+  /** play/pause the FM tuner (play = switch the unit's audio to radio) */
+  radioToggle(): void;
+  /** the tuner's favourites (its session queue) with station logos */
+  getRadioPresets(): Promise<RadioPreset[]>;
+  radioPlayPreset(id: number): void;
+  /** add the current station to the tuner's favourites (its own "Favorite" action) */
+  radioFavorite(): Promise<boolean>;
   /** Mode 04: clear trouble codes + MIL (UNTESTED on the truck; key ON, engine OFF) */
   clearDtcs(): Promise<void>;
+  /** per-PID health for SET → OBD DIAGNOSTICS; null when no link */
+  getObdDiagnostics(): ObdDiagnostics | null;
 }
 
 interface SimOptsCompat {
@@ -98,7 +127,22 @@ export class LiveDataSource implements DataSource, LiveControls {
   private connectivity = new ConnectivityProvider();
   private mtc = new MtcProvider();
   private obd: ObdManager | null = null;
-  private obdConnecting = false;
+  // ---- OBD auto-connect: remembered adapter + retry loop (src/lib/obdLink.ts) ----
+  private started = false;
+  private obdAttempt: Promise<void> | null = null;
+  private obdAttemptId = 0;
+  private obdAutoBusy = false; // one autoConnect (adapter pick + dial) at a time
+  /** false after DISCONNECT OBD; re-armed by CONNECT, ignition-on, or an app restart */
+  private obdAuto = true;
+  private obdWait: 'waiting' | 'no-adapter' | 'no-permission' = 'waiting';
+  private obdMac: string | null = null;
+  private obdFailures = 0;
+  private obdFailingSince: number | null = null;
+  private obdRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  private obdRetryAt: number | null = null;
+  private obdLastError: string | null = null;
+  private prevAcc: boolean | null = null;
+  private appStateSub: { remove: () => void } | null = null;
 
   private histLongG = new Array(HISTORY_LEN).fill(0);
   private histSpeed = new Array(HISTORY_LEN).fill(0);
@@ -108,7 +152,10 @@ export class LiveDataSource implements DataSource, LiveControls {
   private fuel: FuelAccum = initFuelAccum();
   private zeroSixty: ZeroSixtyState = initZeroSixty();
   private prevDistanceMi = 0;
+  private lastFuelAt = 0; // wall time of the last fuel-integration step
   private prevGpsFix = false;
+  private mpgSmooth: number | null = null; // ~2 s EMA of instant mpg (raw swings 5↔99)
+  private mpgSmoothAt = 0;
   private snap: DashboardData = this.buildSnapshot();
 
   constructor(opts: SimOptsCompat = {}) {
@@ -128,6 +175,35 @@ export class LiveDataSource implements DataSource, LiveControls {
     this.connectivity.start();
     this.mtc.start();
     this.timer = setInterval(() => this.tick(), this.tickMs);
+
+    // OBD: connect to the remembered adapter on our own, and keep trying until the truck
+    // (and the dongle) wake up. A short delay lets the BT stack settle after boot.
+    this.started = true;
+    loadObdMac()
+      .then((m) => {
+        this.obdMac = m;
+      })
+      .catch(() => undefined)
+      .finally(() => this.scheduleObd(1500));
+    // keep JS timers running while another app is in front (CarPlay, the stock launcher
+    // popping up on Bluetooth connect, a permission screen) — else OBD + MPG logging freeze
+    void startKeepAlive();
+    this.appStateSub = AppState.addEventListener('change', (st) => {
+      if (st === 'active') {
+        this.setTickMs(this.tickMs);
+        this.kickObd(false); // back on the launcher → try now, not at the next slot
+      } else {
+        // hidden: nothing to draw, so tick at 2 Hz — enough for fuel / distance integration
+        // and the MPG log, light enough not to steal CPU from CarPlay video
+        this.setTickMs(BACKGROUND_TICK_MS);
+      }
+    });
+  }
+
+  private setTickMs(ms: number) {
+    if (!this.timer) return;
+    clearInterval(this.timer);
+    this.timer = setInterval(() => this.tick(), ms);
   }
 
   stop(): void {
@@ -138,7 +214,13 @@ export class LiveDataSource implements DataSource, LiveControls {
     this.media.stop();
     this.connectivity.stop();
     this.mtc.stop();
+    this.started = false;
+    void stopKeepAlive();
+    this.cancelObdRetry();
+    this.appStateSub?.remove();
+    this.appStateSub = null;
     this.obd?.disconnect();
+    this.obd = null;
   }
 
   subscribe(listener: (d: DashboardData) => void): () => void {
@@ -160,6 +242,11 @@ export class LiveDataSource implements DataSource, LiveControls {
     const loc = this.location.getSnapshot();
     const sens = this.sensors.getSnapshot();
 
+    // ignition on (Microntek ACC broadcast) → the dongle is waking: retry right away
+    const acc = this.mtc.getSnapshot().acc;
+    if (acc === true && this.prevAcc !== true) this.kickObd(true);
+    this.prevAcc = acc;
+
     // effective speed for derived metrics: GPS first, OBD speed as fallback
     const obdSpeedKmh = this.obd?.read(PIDS.SPEED).value;
     const speedMph = loc.speedMph ?? (obdSpeedKmh != null ? kmhToMph(obdSpeedKmh) : 0);
@@ -167,15 +254,22 @@ export class LiveDataSource implements DataSource, LiveControls {
     // 0–60 timer off GPS speed (smooth, no OBD latency)
     this.zeroSixty = zeroSixtyStep(this.zeroSixty, speedMph, Date.now() / 1000);
 
-    // average MPG: gallons from MAF, miles from GPS distance delta. Skip while idling
-    // (speed<1 would burn gallons over ~0 miles and drag avg toward 0), and skip the
-    // step where GPS just came back (its distance delta spans the whole dropout).
+    // MPG: gallons from MAF over the REAL time since the last tick, miles from the GPS
+    // distance delta. Measured dt matters: the old fixed 50 ms assumed a perfect 20 Hz,
+    // but the 665 ticks slower (and at 2 Hz in the background), so gallons were
+    // under-counted — trips logged 29–34 mpg (FACT, 2026-10-23). Idle fuel now counts too
+    // (it's real fuel at the pump); only the MILES skip a GPS-just-restored step, whose
+    // delta spans the whole dropout. dt is capped so a frozen/slept gap isn't integrated
+    // with a stale airflow reading.
+    const tickNow = Date.now();
+    const dtMs = this.lastFuelAt ? Math.min(FUEL_DT_CAP_MS, tickNow - this.lastFuelAt) : 0;
+    this.lastFuelAt = tickNow;
     const gpsJustRestored = loc.gpsFix && !this.prevGpsFix;
-    if (this.obd?.connected && speedMph >= 1 && !gpsJustRestored) {
-      const maf = this.obd.read(PIDS.MAF).value;
-      if (maf != null) {
-        const dMiles = Math.max(0, loc.distanceMi - this.prevDistanceMi);
-        this.fuel = accumFuel(this.fuel, maf, speedMph, this.tickMs / 3_600_000, dMiles);
+    if (this.obd?.connected && dtMs > 0) {
+      const mafR = this.obd.read(PIDS.MAF);
+      if (mafR.value != null && mafR.at != null && tickNow - mafR.at < 3000) {
+        const dMiles = speedMph >= 1 && !gpsJustRestored ? Math.max(0, loc.distanceMi - this.prevDistanceMi) : 0;
+        this.fuel = accumFuel(this.fuel, mafR.value, speedMph, dtMs / 3_600_000, dMiles);
       }
     }
     this.prevDistanceMi = loc.distanceMi;
@@ -249,14 +343,25 @@ export class LiveDataSource implements DataSource, LiveControls {
     const load = loadReading.value;
     const maf = mafReading.value;
 
-    const instMpg = obdUp && maf != null ? instantMpg(maf, effSpeedMph) : null;
+    const rawMpg = obdUp && maf != null ? instantMpg(maf, effSpeedMph) : null;
+    if (rawMpg == null) this.mpgSmooth = null; // idle / no link: restart the average
+    else {
+      this.mpgSmooth = emaStep(this.mpgSmooth, Math.min(rawMpg, 99), now - this.mpgSmoothAt, 2000);
+      this.mpgSmoothAt = now;
+    }
+    const instMpg = rawMpg == null ? null : this.mpgSmooth;
     const hp = obdUp && rpm != null && load != null ? estHp(rpm, load) : null;
     const torque = hp != null && rpm != null ? estTorqueLbFt(hp, rpm) : null;
-    const avg = deriveAvgMpg(this.fuel);
+    // idle fuel now counts, so don't show a session average until there's real distance
+    const avg = this.fuel.miles >= 0.5 ? deriveAvgMpg(this.fuel) : null;
     const zsResult = this.zeroSixty.result;
 
     const obdNum = (r: Reading, convert?: (v: number) => number): Signal<number> =>
       obdUp ? this.fresh(r, now, convert) : absent<number>();
+    // SLOW-group PIDs refresh every few seconds by design (measured ~5–9 s on the truck):
+    // give them a window that matches, so temps / volts / trims don't blink to a dash
+    const obdSlow = (r: Reading, convert?: (v: number) => number): Signal<number> =>
+      obdUp ? this.fresh(r, now, convert, 15_000, 45_000) : absent<number>();
 
     const nowPlaying: Signal<NowPlaying> =
       mediaState.available && mediaState.hasAccess && mediaState.nowPlaying
@@ -288,7 +393,7 @@ export class LiveDataSource implements DataSource, LiveControls {
         // head unit's own input voltage via CarManager "battery" (FACT, 2026-10-21 — the
         // same source the stock status bar shows). Sim keeps its fake value.
         voltage: (() => {
-          const fromObd = obdNum(obd?.read(PIDS.CTRL_VOLTAGE) ?? { value: null, at: null }, round1);
+          const fromObd = obdSlow(obd?.read(PIDS.CTRL_VOLTAGE) ?? { value: null, at: null }, round1);
           if (fromObd.status === 'live') return fromObd;
           const mtc = this.mtc.getSnapshot();
           return this.fresh({ value: mtc.voltage, at: mtc.voltageAt }, now, round1, 15000, 60000);
@@ -315,15 +420,19 @@ export class LiveDataSource implements DataSource, LiveControls {
         rpm: obdNum(rpmReading, round),
         throttlePct: obdNum(obd?.read(PIDS.THROTTLE) ?? { value: null, at: null }, round),
         engineLoadPct: obdNum(loadReading, round),
-        coolantTempF: obdNum(obd?.read(PIDS.COOLANT_TEMP) ?? { value: null, at: null }, (c) => round(celsiusToFahrenheit(c))),
-        intakeTempF: obdNum(obd?.read(PIDS.INTAKE_TEMP) ?? { value: null, at: null }, (c) => round(celsiusToFahrenheit(c))),
-        oilTempF: obdNum(obd?.read(PIDS.OIL_TEMP) ?? { value: null, at: null }, (c) => round(celsiusToFahrenheit(c))),
-        ambientTempF: obdNum(obd?.read(PIDS.AMBIENT_TEMP) ?? { value: null, at: null }, (c) => round(celsiusToFahrenheit(c))),
-        fuelLevelPct: obdNum(obd?.read(PIDS.FUEL_LEVEL) ?? { value: null, at: null }, round),
+        coolantTempF: obdSlow(obd?.read(PIDS.COOLANT_TEMP) ?? { value: null, at: null }, (c) => round(celsiusToFahrenheit(c))),
+        intakeTempF: obdSlow(obd?.read(PIDS.INTAKE_TEMP) ?? { value: null, at: null }, (c) => round(celsiusToFahrenheit(c))),
+        oilTempF: obdSlow(obd?.read(PIDS.OIL_TEMP) ?? { value: null, at: null }, (c) => round(celsiusToFahrenheit(c))),
+        ambientTempF: obdSlow(obd?.read(PIDS.AMBIENT_TEMP) ?? { value: null, at: null }, (c) => round(celsiusToFahrenheit(c))),
+        // PID 2F isn't supported here; the EXPERIMENTAL meter probe (litres) fills it if it answers
+        fuelLevelPct: (() => {
+          const meter = obdUp ? this.fresh(obd!.fuelLevelL, now, (l) => round((l / TACOMA_TANK_L) * 100), 120_000, 360_000) : absent<number>();
+          return meter.status !== 'absent' ? meter : obdSlow(obd?.read(PIDS.FUEL_LEVEL) ?? { value: null, at: null }, round);
+        })(),
         instantMpg: obdUp && instMpg != null ? live(round1(instMpg), now) : absent<number>(),
         avgMpg: obdUp && avg != null ? live(round1(avg), now) : absent<number>(),
-        runTimeSec: obdNum(obd?.read(PIDS.RUNTIME) ?? { value: null, at: null }, round),
-        baroKpa: obdNum(obd?.read(PIDS.BARO) ?? { value: null, at: null }, round),
+        runTimeSec: obdSlow(obd?.read(PIDS.RUNTIME) ?? { value: null, at: null }, round),
+        baroKpa: obdSlow(obd?.read(PIDS.BARO) ?? { value: null, at: null }, round),
         estHp: obdUp && hp != null ? live(round(hp), now) : absent<number>(),
         estTorqueLbFt: obdUp && torque != null ? live(round(torque), now) : absent<number>(),
         dtcCount: obdUp ? this.fresh(obd!.dtcCount, now, round, 15000, 60000) : absent<number>(),
@@ -332,19 +441,29 @@ export class LiveDataSource implements DataSource, LiveControls {
           const c = obd?.dtcCodes;
           return obdUp && c && c.codes && c.at ? live(c.codes, c.at) : absent<string[]>();
         })(),
-        stftPct: obdNum(obd?.read(PIDS.STFT_B1) ?? { value: null, at: null }, round1),
-        ltftPct: obdNum(obd?.read(PIDS.LTFT_B1) ?? { value: null, at: null }, round1),
-        mapKpa: obdNum(obd?.read(PIDS.MAP) ?? { value: null, at: null }, round),
-        ecuVolts: obdNum(obd?.read(PIDS.CTRL_VOLTAGE) ?? { value: null, at: null }, round1),
+        stftPct: obdSlow(obd?.read(PIDS.STFT_B1) ?? { value: null, at: null }, round1),
+        ltftPct: obdSlow(obd?.read(PIDS.LTFT_B1) ?? { value: null, at: null }, round1),
+        mapKpa: obdSlow(obd?.read(PIDS.MAP) ?? { value: null, at: null }, round),
+        ecuVolts: obdSlow(obd?.read(PIDS.CTRL_VOLTAGE) ?? { value: null, at: null }, round1),
         // EXPERIMENTAL: polled rarely (every ~40 ticks), so allow it to stay live longer
         transTempF: obdUp
           ? this.fresh(obd!.transTempC, now, (c) => round(celsiusToFahrenheit(c)), 60000, 180000)
           : absent<number>(),
         zeroToSixtySec: zsResult != null ? live(round1(zsResult), now) : absent<number>(),
+        fuelRateGph: (() => {
+          const m = obdNum(mafReading);
+          return m.status === 'absent' || m.value == null ? absent<number>() : { ...m, value: round2(gallonsPerHour(m.value)) };
+        })(),
+        mafGps: obdNum(mafReading, round1),
+        ecuSpeedMph: obdNum(obd?.read(PIDS.SPEED) ?? { value: null, at: null }, (k) => round(kmhToMph(k))),
       },
       body: {
         supported: false,
-        reverseGear: absent<boolean>(),
+        // the MCU's reverse ("backview") state — the one body signal the unit does publish
+        reverseGear: (() => {
+          const m = this.mtc.getSnapshot();
+          return m.reverse != null ? live(m.reverse, m.reverseAt ?? now) : absent<boolean>();
+        })(),
         acOn: absent<boolean>(),
       },
     };
@@ -359,6 +478,10 @@ export class LiveDataSource implements DataSource, LiveControls {
       sensorsOnline: this.sensors.getSnapshot().online,
       obdConnected: !!this.obd?.connected,
       obdAdapterName: this.obd?.adapterName ?? null,
+      obdAuto: this.obd?.connected ? 'connected' : this.obdAttempt ? 'connecting' : !this.obdAuto ? 'off' : this.obdWait,
+      obdRetryInMs: this.obdRetryAt != null ? Math.max(0, this.obdRetryAt - Date.now()) : null,
+      obdLastError: this.obdLastError,
+      obdSavedMac: this.obdMac,
       mediaAvailable: this.media.getSnapshot().available,
       mediaAccess: this.media.hasAccess(),
     };
@@ -378,32 +501,169 @@ export class LiveDataSource implements DataSource, LiveControls {
     return listBondedObdDevices();
   }
 
+  /** SET → CONNECT (or a device row). Also re-arms auto-connect. */
   async connectObd(mac?: string): Promise<void> {
-    if (this.obdConnecting || this.obd?.connected) return;
-    this.obdConnecting = true;
+    this.obdAuto = true;
+    if (this.obd?.connected) return;
+    if (this.obdAttempt) {
+      // an auto attempt is already dialing — let it finish rather than racing it
+      await this.obdAttempt.catch(() => undefined);
+      if (this.obd?.connected) return;
+    }
+    this.cancelObdRetry();
     try {
-      const transport = new ClassicSppTransport(mac);
-      const manager = new ObdManager();
-      this.obd = manager;
-      await manager.connect(transport);
+      await this.attemptObd(mac ?? this.obdMac ?? undefined, true);
     } catch (e) {
-      this.obd?.disconnect();
-      this.obd = null;
+      this.noteObdFailure(e);
       throw e;
-    } finally {
-      this.obdConnecting = false;
     }
   }
 
+  /** SET → DISCONNECT OBD. Pauses auto-connect until CONNECT / ignition-on / restart. */
   disconnectObd(): void {
+    this.obdAuto = false;
+    this.cancelObdRetry();
     this.obd?.disconnect();
     this.obd = null;
     this.fuel = initFuelAccum();
   }
 
+  // ---- OBD auto-connect ------------------------------------------------------
+  /** One connect attempt; concurrent callers share it. Remembers the adapter on success. */
+  private attemptObd(mac: string | undefined, interactive: boolean): Promise<void> {
+    if (this.obdAttempt) return this.obdAttempt;
+    const id = ++this.obdAttemptId;
+    const p = (async () => {
+      try {
+        await this.dialObd(mac, interactive);
+      } finally {
+        // cleared here (not in a .finally chain) so a caller resuming after this attempt
+        // settles never gets handed the old, already-failed promise
+        if (this.obdAttemptId === id) this.obdAttempt = null;
+      }
+    })();
+    this.obdAttempt = p;
+    return p;
+  }
+
+  private async dialObd(mac: string | undefined, interactive: boolean): Promise<void> {
+    const transport = new ClassicSppTransport(mac, { interactive });
+    const manager = new ObdManager();
+    manager.onDrop(() => this.onObdDropped(manager));
+    this.obd = manager;
+    try {
+      await manager.connect(transport);
+    } catch (e) {
+      manager.disconnect();
+      if (this.obd === manager) this.obd = null;
+      throw e;
+    }
+    if (!this.started) {
+      // the source was stopped (sim switch) while we were dialing
+      manager.disconnect();
+      if (this.obd === manager) this.obd = null;
+      return;
+    }
+    this.obdFailures = 0;
+    this.obdFailingSince = null;
+    this.obdLastError = null;
+    this.obdWait = 'waiting';
+    const addr = transport.linkAddress;
+    if (addr && addr !== this.obdMac) {
+      this.obdMac = addr;
+      void saveObdMac(addr);
+    }
+  }
+
+  /** Timer / kick entry point: pick the adapter silently and try once. */
+  private async autoConnect(): Promise<void> {
+    if (!this.started || !this.obdAuto || this.obd?.connected || this.obdAttempt || this.obdAutoBusy) return;
+    this.obdAutoBusy = true;
+    try {
+      await this.autoConnectOnce();
+    } finally {
+      this.obdAutoBusy = false;
+    }
+  }
+
+  private async autoConnectOnce(): Promise<void> {
+    let mac: string | null;
+    try {
+      if (!(await hasBluetoothPermission())) {
+        this.noteObdFailure(new Error('Bluetooth permission needed — tap CONNECT once'), 'no-permission', OBD_RETRY_SLOW_MS);
+        return;
+      }
+      mac = pickObdAdapter(await listBondedObdDevices(), this.obdMac);
+    } catch (e) {
+      this.noteObdFailure(e); // e.g. Bluetooth still off right after boot
+      return;
+    }
+    if (!mac) {
+      this.noteObdFailure(new Error('No paired OBD adapter — pair it in Android Bluetooth'), 'no-adapter');
+      return;
+    }
+    if (!this.started || !this.obdAuto || this.obd?.connected) return;
+    try {
+      await this.attemptObd(mac, false);
+    } catch (e) {
+      this.noteObdFailure(e);
+    }
+  }
+
+  private noteObdFailure(e: unknown, wait: 'waiting' | 'no-adapter' | 'no-permission' = 'waiting', minDelayMs = 0) {
+    const now = Date.now();
+    this.obdFailures++;
+    if (this.obdFailingSince == null) this.obdFailingSince = now;
+    this.obdLastError = e instanceof Error ? e.message : String(e);
+    this.obdWait = wait;
+    this.scheduleObd(Math.max(minDelayMs, obdRetryDelayMs(this.obdFailures, now - this.obdFailingSince)));
+  }
+
+  private onObdDropped(manager: ObdManager) {
+    if (this.obd !== manager) return;
+    manager.disconnect(); // release the dead socket + listeners
+    this.obd = null;
+    // the drive isn't over just because the link blinked: keep the fuel tally, redial soon
+    this.obdFailures = 0;
+    this.obdFailingSince = null;
+    this.obdWait = 'waiting';
+    this.scheduleObd(2000);
+  }
+
+  /** Ignition-on / foreground: reset the backoff and try now (if not already linked). */
+  private kickObd(ignition: boolean) {
+    if (!this.started) return;
+    if (ignition) this.obdAuto = true; // a new drive re-arms a manual DISCONNECT
+    if (!this.obdAuto || this.obd?.connected || this.obdAttempt) return;
+    this.obdFailures = 0;
+    this.obdFailingSince = null;
+    this.scheduleObd(0);
+  }
+
+  private scheduleObd(delayMs: number) {
+    this.cancelObdRetry();
+    if (!this.started || !this.obdAuto) return;
+    this.obdRetryAt = Date.now() + delayMs;
+    this.obdRetryTimer = setTimeout(() => {
+      this.obdRetryTimer = null;
+      this.obdRetryAt = null;
+      void this.autoConnect();
+    }, delayMs);
+  }
+
+  private cancelObdRetry() {
+    if (this.obdRetryTimer) clearTimeout(this.obdRetryTimer);
+    this.obdRetryTimer = null;
+    this.obdRetryAt = null;
+  }
+
   async clearDtcs(): Promise<void> {
     if (!this.obd?.connected) throw new Error('OBD not connected');
     await this.obd.clearDtcs();
+  }
+
+  getObdDiagnostics(): ObdDiagnostics | null {
+    return this.obd ? this.obd.diagnostics() : null;
   }
 
   hasMediaAccess(): boolean {
@@ -429,6 +689,18 @@ export class LiveDataSource implements DataSource, LiveControls {
   }
   radioSeek(dir: 1 | -1): void {
     this.media.radioSeek(dir);
+  }
+  radioToggle(): void {
+    this.media.radioToggle();
+  }
+  getRadioPresets(): Promise<RadioPreset[]> {
+    return this.media.radioPresets();
+  }
+  radioPlayPreset(id: number): void {
+    this.media.radioPlayPreset(id);
+  }
+  radioFavorite(): Promise<boolean> {
+    return this.media.radioFavorite();
   }
 
   /** Load any persisted IMU calibration. Call before start(). */

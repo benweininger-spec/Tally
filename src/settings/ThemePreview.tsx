@@ -50,7 +50,7 @@ function Stat({ value, unit, label, color }: { value: string; unit: string; labe
     <View>
       <Text style={[styles.value, { color }]}>
         {value}
-        <Text style={{ fontSize: 16, color: t.textDim }}> {unit}</Text>
+        <Text style={{ fontSize: 19, color: t.textDim }}> {unit}</Text>
       </Text>
       <Text style={[styles.label, { color: t.textFaint }]}>{label}</Text>
     </View>
@@ -60,11 +60,11 @@ function Stat({ value, unit, label, color }: { value: string; unit: string; labe
 const styles = StyleSheet.create({
   split: { flexDirection: 'row', gap: 16 },
   panel: { flex: 1, borderWidth: 1, borderRadius: 8, padding: 16, alignItems: 'center', gap: 10 },
-  title: { alignSelf: 'flex-start', fontFamily: 'JetBrains Mono', fontSize: 13, letterSpacing: 3 },
+  title: { alignSelf: 'flex-start', fontFamily: 'JetBrains Mono', fontSize: 16, letterSpacing: 3 },
   stats: { flexDirection: 'row', justifyContent: 'space-around', alignSelf: 'stretch' },
   value: { fontFamily: 'Oxanium', fontSize: 34, fontWeight: '700' },
-  label: { fontFamily: 'JetBrains Mono', fontSize: 11, letterSpacing: 2 },
+  label: { fontFamily: 'JetBrains Mono', fontSize: 15, letterSpacing: 2 },
   tile: { alignSelf: 'stretch', height: 72, borderWidth: 1, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
   tileText: { fontFamily: 'JetBrains Mono', fontSize: 17, letterSpacing: 3 },
-  ratio: { fontFamily: 'JetBrains Mono', fontSize: 12, letterSpacing: 1 },
+  ratio: { fontFamily: 'JetBrains Mono', fontSize: 15, letterSpacing: 1 },
 });

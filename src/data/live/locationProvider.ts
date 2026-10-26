@@ -59,7 +59,11 @@ export class LocationProvider {
   };
 
   async start(): Promise<void> {
-    const { status } = await Location.requestForegroundPermissionsAsync();
+    // CHECK before requesting: on this unit a request — even an already-granted one —
+    // flashes Android's permission screen, which pauses the app (and, before the
+    // keep-alive, froze OBD setup mid-handshake). Only ask when actually missing.
+    let { status } = await Location.getForegroundPermissionsAsync();
+    if (status !== 'granted') ({ status } = await Location.requestForegroundPermissionsAsync());
     this.snap.permission =
       status === 'granted' ? 'granted' : status === 'denied' ? 'denied' : 'undetermined';
     if (status !== 'granted') return;

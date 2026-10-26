@@ -9,6 +9,8 @@ import android.net.wifi.WifiManager
 import android.os.Bundle
 import android.provider.Settings
 import androidx.core.os.bundleOf
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import expo.modules.kotlin.exception.CodedException
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
@@ -39,6 +41,29 @@ class SysControlsModule : Module() {
 
     /** Everything the SET sheet shows, in one bridge call. */
     Function("getState") { state() }
+
+    /**
+     * Immersive sticky over the dash. This unit's top bar carries the nav buttons (home /
+     * back / recents) + status icons and is drawn OVER our header — `StatusBar hidden`
+     * alone left it there (FACT, truck screenshots 2026-10-23). Hiding all system bars with
+     * swipe-to-reveal keeps it one edge-swipe away; other apps still get their bars.
+     */
+    Function("setImmersive") { on: Boolean ->
+      val act = appContext.currentActivity ?: return@Function false
+      act.runOnUiThread {
+        try {
+          val c = WindowInsetsControllerCompat(act.window, act.window.decorView)
+          if (on) {
+            c.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            c.hide(WindowInsetsCompat.Type.systemBars())
+          } else {
+            c.show(WindowInsetsCompat.Type.systemBars())
+          }
+        } catch (_: Throwable) {
+        }
+      }
+      true
+    }
 
     Function("requestWriteSettings") {
       val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:" + context.packageName))

@@ -144,3 +144,108 @@ export function buildWaveform(o: WaveformOpts): Waveform {
 function f(n: number): string {
   return (Math.round(n * 100) / 100).toString();
 }
+
+// ---- smooth trace (the signature's speed history) ----------------------------
+export interface TraceOpts {
+  /** oldest → newest (e.g. the drive recorder's 20 Hz speed ring, read out in order) */
+  samples: ArrayLike<number>;
+  /** valid samples at the start of `samples` */
+  count: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** samples spanning the full width (default 1200 = 60 s at 20 Hz) */
+  window?: number;
+  /** curve knots across the width (default 72) */
+  points?: number;
+  /** moving-average width in samples (default 30 = 1.5 s) — irons out GPS stair-steps */
+  smooth?: number;
+  /** smallest full-scale value (default 40) and the step it rounds up to (default 20) */
+  scaleMin?: number;
+  scaleStep?: number;
+  /** draw against this full scale instead of the computed one (lets a caller ease it) */
+  top?: number;
+}
+
+export interface Trace {
+  /** smooth curve (cubic Béziers) — no corners, no jags */
+  line: string;
+  /** the curve closed down to the floor */
+  fill: string;
+  /** y of the zero line (bottom of the box) */
+  floor: number;
+  /** newest point, for the glow dot */
+  head: Point;
+  /** full-scale value the box height represents */
+  top: number;
+  /** the full scale this data wants (rounded max) — ease `top` toward it */
+  want: number;
+}
+
+/**
+ * A wavy history line: box-averaged knots at fixed x positions (time ≈ now − age), joined
+ * with a Catmull-Rom spline. Knot times are measured from the END of the newest sample, so
+ * each new sample slides every knot 1/stride of a knot-gap through the data — with the
+ * continuous (fractional) box average that reads as a smooth scroll, not a hop.
+ */
+export function buildTrace(o: TraceOpts): Trace {
+  const W = Math.max(2, o.window ?? 1200);
+  const K = Math.max(2, Math.floor(o.points ?? 72));
+  const S = Math.max(1, o.smooth ?? 30);
+  const n = Math.max(0, Math.min(Math.floor(o.count), o.samples.length));
+  const floor = o.y + o.height;
+
+  // prefix sums → cumulative C(t) is piecewise-linear in t, so averages over fractional
+  // windows change continuously as the window slides
+  const pre = new Float64Array(n + 1);
+  for (let i = 0; i < n; i++) {
+    const v = o.samples[i];
+    pre[i + 1] = pre[i] + (Number.isFinite(v) ? Math.max(0, v) : 0);
+  }
+  const C = (t: number) => {
+    if (t <= 0) return 0;
+    if (t >= n) return pre[n];
+    const i = Math.floor(t);
+    return pre[i] + (t - i) * (pre[i + 1] - pre[i]);
+  };
+  const avg = (center: number) => {
+    const a = Math.max(0, center - S / 2);
+    const b = Math.min(n, center + S / 2);
+    return b - a > 1e-6 ? (C(b) - C(a)) / (b - a) : 0;
+  };
+
+  const stride = W / (K - 1);
+  const vals: number[] = new Array(K);
+  let max = 0;
+  for (let k = 0; k < K; k++) {
+    const v = avg(n - (K - 1 - k) * stride);
+    vals[k] = v;
+    if (v > max) max = v;
+  }
+  const scaleMin = o.scaleMin ?? 40;
+  const step = o.scaleStep ?? 20;
+  const want = Math.max(scaleMin, Math.ceil((max * 1.1) / step) * step);
+  const top = o.top != null && o.top > 0 ? o.top : want;
+
+  const pts: Point[] = vals.map((v, k) => ({
+    x: o.x + (k / (K - 1)) * o.width,
+    y: floor - Math.min(1, v / top) * o.height,
+  }));
+  const clampY = (y: number) => Math.max(o.y, Math.min(floor, y));
+  let line = `M ${f(pts[0].x)} ${f(pts[0].y)}`;
+  for (let i = 0; i < K - 1; i++) {
+    const p0 = pts[i - 1] ?? pts[i];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[i + 2] ?? pts[i + 1];
+    const c1x = p1.x + (p2.x - p0.x) / 6;
+    const c1y = clampY(p1.y + (p2.y - p0.y) / 6);
+    const c2x = p2.x - (p3.x - p1.x) / 6;
+    const c2y = clampY(p2.y - (p3.y - p1.y) / 6);
+    line += ` C ${f(c1x)} ${f(c1y)} ${f(c2x)} ${f(c2y)} ${f(p2.x)} ${f(p2.y)}`;
+  }
+  const last = pts[K - 1];
+  const fill = `${line} L ${f(last.x)} ${f(floor)} L ${f(pts[0].x)} ${f(floor)} Z`;
+  return { line, fill, floor, head: last, top, want };
+}

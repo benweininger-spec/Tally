@@ -15,7 +15,7 @@ import {
   type Theme,
 } from '../src/theme/themes.ts';
 
-const TOKENS = ['text', 'accent', 'accentSoft', 'accentAlt', 'textDim', 'textFaint', 'warn', 'cold', 'absent', 'panelBorder', 'hairline'] as const;
+const TOKENS = ['text', 'accent', 'accentSoft', 'accentAlt', 'textDim', 'textFaint', 'warn', 'cold', 'eco', 'absent', 'panelBorder', 'hairline'] as const;
 
 const grade = (r: number) => (r >= 7 ? 'AAA' : r >= 4.5 ? 'AA ' : r >= 3 ? 'UI ' : '-- ');
 

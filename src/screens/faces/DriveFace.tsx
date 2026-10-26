@@ -2,6 +2,7 @@ import React from 'react';
 import { View } from 'react-native';
 import { PulseTach } from '../../components/signature/PulseTach';
 import { ConnectMoment } from '../../components/signature/ConnectMoment';
+import { GearBadge } from '../../components/GearBadge';
 import { TelemetryStrip } from '../../components/TelemetryStrip';
 import { GyroCard } from '../../components/GyroCard';
 import { GScopeCard } from '../../components/GScopeCard';
@@ -23,6 +24,7 @@ export const DriveFace = React.memo(function DriveFace() {
       <View style={{ position: 'absolute', left: 116, top: 150 }}>
         <PulseTach size={720} />
         <ConnectMoment size={720} />
+        <GearBadge size={720} />
       </View>
 
       {/* live telemetry strip beneath the signature (Tier A, glanceable) */}
@@ -40,7 +42,7 @@ export const DriveFace = React.memo(function DriveFace() {
 
       {/* right rail */}
       <View style={{ position: 'absolute', left: 1300, top: 124, width: 652, gap: 24 }}>
-        <MediaWidget />
+        <MediaWidget presets={false} />
         <CompassCard />
         <VehiclePanel />
       </View>

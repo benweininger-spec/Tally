@@ -141,9 +141,9 @@ function Card({
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 24 },
   card: { borderWidth: 1, borderRadius: 8, padding: 24 },
-  label: { fontFamily: 'JetBrains Mono', fontSize: 14, letterSpacing: 4 },
+  label: { fontFamily: 'JetBrains Mono', fontSize: 17, letterSpacing: 4 },
   angle: { fontFamily: 'Oxanium', fontSize: 128, fontWeight: '700', lineHeight: 146, marginTop: 4 },
-  caption: { fontFamily: 'JetBrains Mono', fontSize: 16, letterSpacing: 3 },
+  caption: { fontFamily: 'JetBrains Mono', fontSize: 19, letterSpacing: 3 },
   value: { fontFamily: 'Oxanium', fontSize: 54, fontWeight: '700', lineHeight: 60, marginTop: 8 },
   latHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 },
   latValue: { fontFamily: 'Oxanium', fontSize: 30, fontWeight: '700' },

@@ -30,6 +30,8 @@ export interface Theme {
   warn: string;
   /** cold-side gauge zone (coolant below operating temp) — the palette's one cool hue */
   cold: string;
+  /** fuel-economy "good" end (the ECO zone) — fades through accent to warn as mpg drops */
+  eco: string;
   fontDisplay: string; // big numerals
   fontMono: string; // labels, telemetry
   /** signature ring stroke multiplier (day thickens lines for sun) */
@@ -54,6 +56,7 @@ export const amberNight: Theme = {
   absent: '#5a4a30',
   warn: '#F2403A',
   cold: '#7FA8C9',
+  eco: '#8CC98A',
   fontDisplay: 'Oxanium',
   fontMono: 'JetBrains Mono',
   stroke: 1,
@@ -86,6 +89,7 @@ export const amberDay: Theme = {
   absent: '#B89C6A',
   warn: '#9B1C1C', // deep red still reads on light for redline
   cold: '#2D5F86',
+  eco: '#22592C',
   fontDisplay: 'Oxanium',
   fontMono: 'JetBrains Mono',
   stroke: 1.2,
@@ -130,6 +134,15 @@ export function parseColor(c: unknown): RGBA | null {
   const p = m[1].split(',').map((x) => parseFloat(x));
   if (p.length < 3 || p.some((x) => !Number.isFinite(x))) return null;
   return [p[0], p[1], p[2], p.length > 3 ? p[3] : 1];
+}
+
+/** Straight RGB blend: f 0 → a, 1 → b (alpha too). Unparseable input returns `b`. */
+export function mixColor(a: string, b: string, f: number): string {
+  const pa = parseColor(a);
+  const pb = parseColor(b);
+  if (!pa || !pb) return b;
+  const k = Math.max(0, Math.min(1, f));
+  return formatColor([pa[0] + (pb[0] - pa[0]) * k, pa[1] + (pb[1] - pa[1]) * k, pa[2] + (pb[2] - pa[2]) * k, pa[3] + (pb[3] - pa[3]) * k]);
 }
 
 export function formatColor([r, g, b, a]: RGBA): string {

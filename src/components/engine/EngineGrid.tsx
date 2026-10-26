@@ -1,7 +1,11 @@
 /**
- * ENGINE face — middle grid: every remaining OBD value as its own memoised tile
- * (INTAKE · AMBIENT · MAP · BARO · FUEL · RUN TIME · ECU vs UNIT volts · TRANS
+ * ENGINE face — middle grid: the remaining OBD values as memoised tiles (INTAKE ·
+ * AIRFLOW · ECU SPEED vs GPS · BARO · FUEL USED · RUN TIME · ECU vs UNIT volts · TRANS
  * (experimental) · STFT · LTFT). Each tile selects one quantised primitive.
+ *
+ * Measured on the truck (2026-10-23): the 2016 2TR-FE's support mask does NOT include
+ * MAP (0B), fuel level (2F), ambient (46) or oil temp (5C), so those tiles were replaced
+ * with values it does feed (MAF-derived airflow / fuel used, the ECU's own speed).
  */
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -20,10 +24,28 @@ function NumTile({ label, pick, unit, step = 1, digits = 0 }: { label: string; p
 }
 
 const Intake = React.memo(() => <NumTile label="INTAKE AIR" pick={(d) => d.obd.intakeTempF} unit="°F" />);
-const Ambient = React.memo(() => <NumTile label="AMBIENT" pick={(d) => d.obd.ambientTempF} unit="°F" />);
-const Manifold = React.memo(() => <NumTile label="MANIFOLD (MAP)" pick={(d) => d.obd.mapKpa} unit="kPa" />);
+const Airflow = React.memo(() => <NumTile label="AIRFLOW (MAF)" pick={(d) => d.obd.mafGps} unit="g/s" step={0.1} digits={1} />);
 const Baro = React.memo(() => <NumTile label="BAROMETRIC" pick={(d) => d.obd.baroKpa} unit="kPa" />);
-const Fuel = React.memo(() => <NumTile label="FUEL LEVEL" pick={(d) => d.obd.fuelLevelPct} unit="%" />);
+
+/** The truck's own speed (PID 0D) next to GPS — the speedometer-error check (tire size). */
+const EcuSpeed = React.memo(function EcuSpeed() {
+  const v = useTelemetry((d) => ({ ecu: num(d.obd.ecuSpeedMph), gps: num(d.motion.speedMph) }), shallowEqual);
+  const delta = v.ecu != null && v.gps != null && v.gps >= 5 ? v.ecu - v.gps : null;
+  return (
+    <Tile
+      label="ECU SPEED"
+      value={v.ecu == null ? null : String(v.ecu)}
+      unit="mph"
+      caption={v.gps == null ? undefined : `GPS ${v.gps}${delta != null ? ` · Δ ${delta >= 0 ? '+' : '−'}${Math.abs(delta)}` : ''}`}
+    />
+  );
+});
+
+/** Gallons burned this session, integrated from MAF (the MPG log's source too). */
+const FuelUsed = React.memo(function FuelUsed() {
+  const g = useTelemetry((d) => num(d.trip.fuelGallons, 0.01));
+  return <Tile label="FUEL USED" value={g == null ? null : g.toFixed(2)} unit="gal" caption={g == null ? undefined : 'THIS SESSION · FROM MAF'} />;
+});
 
 const RunTime = React.memo(function RunTime() {
   // minutes resolution: the tile wakes once a minute, not once a second
@@ -71,17 +93,17 @@ const Trans = React.memo(function Trans() {
 
 const Stft = React.memo(function Stft() {
   const v = useTelemetry((d) => num(d.obd.stftPct, 0.5));
-  return <TrimBar label="SHORT TRIM B1" pct={v} />;
+  return <TrimBar label="SHORT TRIM" pct={v} />; // 2TR-FE is an inline-4: bank 1 is the only bank
 });
 const Ltft = React.memo(function Ltft() {
   const v = useTelemetry((d) => num(d.obd.ltftPct, 0.5));
-  return <TrimBar label="LONG TRIM B1" pct={v} />;
+  return <TrimBar label="LONG TRIM" pct={v} />;
 });
 
 const ROWS: React.ComponentType[][] = [
-  [Intake, Ambient],
-  [Manifold, Baro],
-  [Fuel, RunTime],
+  [Intake, Airflow],
+  [EcuSpeed, Baro],
+  [FuelUsed, RunTime],
   [Volts, Trans],
   [Stft, Ltft],
 ];

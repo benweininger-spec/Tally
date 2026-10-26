@@ -125,7 +125,7 @@ export const AltitudeRibbon = React.memo(function AltitudeRibbon({
       </View>
 
       <View style={[styles.numBlock, { width: numW }]}>
-        <Text style={[styles.label, { color: t.textFaint, fontSize: compact ? 12 : 14 }]}>GRADE</Text>
+        <Text style={[styles.label, { color: t.textFaint, fontSize: compact ? 15 : 17 }]}>GRADE</Text>
         <Text style={[styles.grade, { color: gradeColor, fontSize: compact ? 30 : 72, lineHeight: compact ? 36 : 80 }]}>
           {gradeText}
           <Text style={{ fontSize: compact ? 16 : 30, color: t.textDim }}> %</Text>
@@ -142,9 +142,9 @@ export const AltitudeRibbon = React.memo(function AltitudeRibbon({
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  caption: { position: 'absolute', left: 0, top: 0, fontFamily: 'JetBrains Mono', fontSize: 13, letterSpacing: 3 },
+  caption: { position: 'absolute', left: 0, top: 0, fontFamily: 'JetBrains Mono', fontSize: 16, letterSpacing: 3 },
   numBlock: { alignItems: 'flex-end', justifyContent: 'center' },
   label: { fontFamily: 'JetBrains Mono', letterSpacing: 3 },
   grade: { fontFamily: 'Oxanium', fontWeight: '700' },
-  alt: { fontFamily: 'JetBrains Mono', fontSize: 16, letterSpacing: 2, marginTop: 2 },
+  alt: { fontFamily: 'JetBrains Mono', fontSize: 19, letterSpacing: 2, marginTop: 2 },
 });

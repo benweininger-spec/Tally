@@ -10,6 +10,8 @@ import { shallowEqual, useTelemetry } from '../../data/DataSourceProvider';
 import { useTheme } from '../../theme/ThemeProvider';
 import { has } from '../../data/types';
 import { arcPath, polar } from '../../lib/pulse';
+import { COOLANT_HOT_F, COOLANT_WARM_F } from '../../lib/engineGlance';
+import { coolantColor } from '../../theme/glanceColors';
 import { Card, PctBar, Tile } from './parts';
 
 export const RPM_FULL = 5500;
@@ -85,8 +87,8 @@ export const RpmCard = React.memo(function RpmCard() {
 // ---- coolant arc --------------------------------------------------------------
 const C_MIN = 100;
 const C_MAX = 260;
-const C_COLD = 160; // below: still warming up
-const C_HOT = 230; // at/above: running hot
+const C_COLD = COOLANT_WARM_F; // below: still warming up (same line as HOME's warm-up card)
+const C_HOT = COOLANT_HOT_F; // at/above: running hot
 const ARC_W = 556;
 const ARC_H = 196;
 const ACX = ARC_W / 2;
@@ -107,7 +109,8 @@ export const CoolantCard = React.memo(function CoolantCard() {
   );
   const absent = temp == null;
   const state = absent ? null : temp < C_COLD ? 'COLD' : temp >= C_HOT ? 'HOT' : 'NORMAL';
-  const color = absent ? t.absent : temp < C_COLD ? t.cold : temp >= C_HOT ? t.warn : t.accent;
+  // the live arc + numeral step blue → amber as it warms (same ramp as HOME's card)
+  const color = coolantColor(t, temp);
   const a = absent ? 180 : angleOf(temp);
   const tip = polar(ACX, ACY, AR, a);
   return (
@@ -150,25 +153,35 @@ export const LoadThrottleCard = React.memo(function LoadThrottleCard() {
   );
 });
 
-export const OilTile = React.memo(function OilTile() {
-  const oil = useTelemetry((d) => (has(d.obd.oilTempF) ? Math.round(d.obd.oilTempF.value) : null));
+/**
+ * Fuel burn right now (gal/h, from MAF). Replaced OIL TEMP: the 2TR-FE doesn't report
+ * PID 5C (measured 2026-10-23). Works at idle, where mpg is undefined.
+ */
+export const FuelRateTile = React.memo(function FuelRateTile() {
+  const v = useTelemetry(
+    (d) => ({
+      gph: has(d.obd.fuelRateGph) ? Math.round(d.obd.fuelRateGph.value * 100) / 100 : null,
+      moving: has(d.motion.speedMph) && d.motion.speedMph.value >= 1,
+    }),
+    shallowEqual
+  );
   // fixed-height wrapper: the Tile flexes to fill it (RN-web's flex:0 collapses to content)
   return (
     <View style={{ height: 128 }}>
-      <Tile label="OIL TEMP" value={oil == null ? null : String(oil)} unit="°F" caption={oil == null ? 'PID 5C · NOT REPORTED' : undefined} size={40} />
+      <Tile label="FUEL RATE" value={v.gph == null ? null : v.gph.toFixed(2)} unit="gal/h" caption={v.gph == null ? undefined : v.moving ? 'NOW' : 'AT IDLE'} size={40} />
     </View>
   );
 });
 
 const s = StyleSheet.create({
   rpm: { fontFamily: 'Oxanium', fontSize: 124, fontWeight: '700', lineHeight: 130, marginBottom: 4 },
-  redline: { fontFamily: 'JetBrains Mono', fontSize: 12, letterSpacing: 2 },
+  redline: { fontFamily: 'JetBrains Mono', fontSize: 15, letterSpacing: 2 },
   scale: { height: 22, marginTop: 4 },
-  scaleText: { position: 'absolute', top: 0, fontFamily: 'JetBrains Mono', fontSize: 13, letterSpacing: 1 },
-  hint: { fontFamily: 'JetBrains Mono', fontSize: 12, letterSpacing: 2, marginTop: 6 },
-  zone: { fontFamily: 'JetBrains Mono', fontSize: 14, letterSpacing: 3 },
+  scaleText: { position: 'absolute', top: 0, fontFamily: 'JetBrains Mono', fontSize: 16, letterSpacing: 1 },
+  hint: { fontFamily: 'JetBrains Mono', fontSize: 15, letterSpacing: 2, marginTop: 6 },
+  zone: { fontFamily: 'JetBrains Mono', fontSize: 17, letterSpacing: 3 },
   arcCenter: { position: 'absolute', left: 0, right: 0, top: 96, alignItems: 'center' },
   arcValue: { fontFamily: 'Oxanium', fontSize: 64, fontWeight: '700' },
   arcUnit: { fontFamily: 'Oxanium', fontSize: 26, fontWeight: '600' },
-  arcEnd: { position: 'absolute', top: ACY + 6, fontFamily: 'JetBrains Mono', fontSize: 13 },
+  arcEnd: { position: 'absolute', top: ACY + 6, fontFamily: 'JetBrains Mono', fontSize: 16 },
 });

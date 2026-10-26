@@ -41,7 +41,7 @@ export function Btn({
 
 const styles = StyleSheet.create({
   section: { borderTopWidth: 1, paddingTop: 16 },
-  sectionTitle: { fontFamily: 'JetBrains Mono', fontSize: 13, letterSpacing: 3, marginBottom: 12 },
+  sectionTitle: { fontFamily: 'JetBrains Mono', fontSize: 16, letterSpacing: 3, marginBottom: 12 },
   btn: { minHeight: 72, borderWidth: 1, borderRadius: 6, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center' },
   btnText: { fontFamily: 'Oxanium', fontSize: 17, fontWeight: '700', letterSpacing: 1 },
 });

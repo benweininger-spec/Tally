@@ -80,3 +80,38 @@ assumptions the code makes, to confirm or correct on the truck:
   reads "EXPERIMENTAL · NO ANSWER" if none answers. A dongle that ignores `ATSH` will just fail
   all three.
 - **Gallons** are MAF-derived (stoich 14.7, gasoline 6.17 lb/gal) — compare a tank against the pump.
+
+## OBD on the truck (FACT, 2026-10-23 — engine idling, parked, vLinker MC+, app build of 10-21)
+Read from `adb logcat -s RNBluetoothClassicModule` (the BT library logs every reply as
+"Received translated data from the device: 41…" — a free wire tap, no app changes needed).
+- **Answering (13):** 04 load, 05 coolant, 06/07 fuel trims B1, 0C RPM, 0D speed, 0F intake,
+  10 MAF, 11 throttle, 1F run time, 33 baro, 42 ECU volts, 01 monitor status. Zero NO DATA replies.
+- **Not in the truck's support mask (never asked):** 0B MAP (2TR-FE is MAF-only), 2F fuel level,
+  46 ambient, 5C oil temp. Fuel level / ambient may exist as Toyota-enhanced PIDs — untried.
+- **ATF probe (EXPERIMENTAL):** no `61 82` / `62 …` replies seen — treat as not answering.
+- **Idle numbers:** ~750 rpm, MAF 3.4 g/s ≈ 0.30 gal/h, load ~30 %, throttle 17 %, LTFT −6.2 %,
+  STFT +1–2 %, ECU 13.59 V, baro 98 kPa, MIL off / 0 codes. Coolant 158 → 163 °F between
+  526 s and 572 s run time (crossed the 160 °F warm line at ~9 min idling, intake air 79 °F).
+- **Speed:** ~150 ms per request (≈ 6.5 replies/s) *without* the ELM response-count suffix, so a
+  SLOW-group PID refreshed only every ~9 s. Build after 10-23 appends `1` ("010C1") to return on
+  the first ECU reply; falls back automatically if the adapter answers `?`.
+- **Background pause:** the moment another app is in front (`ReactHost.onHostPause`), JS timers
+  stop and so does OBD polling (last reply 80 ms after pause); it resumes on HOME. The RFCOMM link
+  stays open (status-bar OBD glyph stays lit). So no OBD/MPG logging while CarPlay is in front.
+
+## Media sessions + foreground behaviour (FACT, 2026-10-23)
+- The stock Telenav launcher owns three sessions, told apart by **tag**: `BluetoothMediaService`
+  (the phone's music via the unit's BT module — play/pause/next/prev), `radioServerRadioMediaBrowserService`
+  (FM: title "102.30", artist RDS "KCLU", album "FM", 4 presets), `LocalMediaService` (USB). Android's
+  own `com.android.bluetooth` session sits idle ("Bluetooth audio disconnected"). With wireless CarPlay
+  (ZLink) attached the BT session reads "Not Playing"; ZLink publishes no session at all.
+- Factory radio app = `com.microntek.radio` (`.MainActivity`); `com.syu.*` / `com.fyt.radio` don't exist here.
+- **The stock launcher pops itself to the front** on Bluetooth events (it started `LauncherActivity` 26 ms after
+  the vLinker's RFCOMM came up) and for phone calls (in-call card). Our app pauses → before the
+  `js-keepalive` module, JS timers froze and OBD init stalled. With it: 175 OBD replies in 20 s with
+  Settings in front (verified).
+- `Location.requestForegroundPermissionsAsync()` flashes the permission activity even when already granted
+  (pauses the app ~0.6 s) — check first.
+- With the response-count suffix (`010C1`): 9.2–9.3 replies/s (was ~6.5). Full Mode 01 support mask:
+  `01 03 04 05 06 07 0C 0D 0E 0F 10 11 12 13 15 1C 1F 20 21 24 2E 30 31 33 34 3C 3E 40 41 42 43 44 45 47
+  49 4A 4C 4D 4E 51 53 60` (protocol A6 = ISO 15765-4 CAN 11-bit 500k, adapter "ELM327 v2.2").

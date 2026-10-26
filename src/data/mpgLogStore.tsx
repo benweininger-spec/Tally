@@ -20,6 +20,8 @@ import { useEffect, useRef, useSyncExternalStore } from 'react';
 import type { DashboardData } from './types';
 import { useSourceControls, useTelemetryListener } from './DataSourceProvider';
 import { loadMpgLogRaw, saveMpgLogRaw, type SourceMode } from './settings';
+import { logbookStore } from './logbookStore';
+import { ECO_MPG } from '../lib/engineGlance';
 import {
   addDelta,
   dateKey,
@@ -28,6 +30,7 @@ import {
   syntheticLog,
   tripEnd,
   tripStart,
+  tripTick,
   tripUpdate,
   type MpgLog,
 } from '../lib/mpgLog';
@@ -46,6 +49,7 @@ class MpgLogStore {
   private lastDist: number | null = null;
   private lastGal: number | null = null;
   private lastMovingAt = 0;
+  private lastTickAt = 0;
   private lastNotify = 0;
   private pendingNotify = false;
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -92,6 +96,7 @@ class MpgLogStore {
   }
 
   setMode(mode: SourceMode) {
+    logbookStore.setMode(mode);
     if (mode === this.mode) return;
     this.mode = mode;
     // the new source has its own odometer / fuel counters: re-baseline
@@ -137,6 +142,14 @@ class MpgLogStore {
       this.lastGal = gal;
     } else this.lastGal = null;
 
+    // trip-summary stats (real elapsed time; eco = smoothed instant mpg in the ECO zone)
+    const dtSec = this.lastTickAt ? (now - this.lastTickAt) / 1000 : 0;
+    this.lastTickAt = now;
+    const mpg = d.obd.instantMpg.status !== 'absent' ? d.obd.instantMpg.value : null;
+    if (log.current) tripTick(log, dtSec, speed, mpg != null ? mpg >= ECO_MPG : null);
+    // the logbook (fuel left, odometer) runs on exactly these deltas
+    logbookStore.usage(dMi, dGal);
+
     let changed = false;
     if (speed >= 1) {
       this.lastMovingAt = now;
@@ -169,6 +182,7 @@ export function MpgLogFeed() {
   const { mode } = useSourceControls();
   useEffect(() => {
     void mpgLogStore.load();
+    void logbookStore.load();
   }, []);
   useEffect(() => {
     mpgLogStore.setMode(mode);

@@ -17,20 +17,20 @@ import { Platform, StyleSheet, Text, View } from 'react-native';
 import { Canvas, Circle, DashPathEffect, Line, LinearGradient, Path, vec } from '@shopify/react-native-skia';
 import { useSharedValue } from 'react-native-reanimated';
 import { useDataSource } from '../../data/DataSourceProvider';
+import { driveRecorder } from '../../data/driveRecorder';
 import { useTheme } from '../../theme/ThemeProvider';
 import { formatColor, parseColor } from '../../theme/themes';
-import { buildWaveform, gaugeProgress, gaugeRedline, gaugeTicks, gaugeTrack, type Tick } from '../../lib/pulse';
+import { gaugeProgress, gaugeRedline, gaugeTicks, gaugeTrack, type Tick } from '../../lib/pulse';
 import { nowMs } from './sweepChannel';
 import {
   LOOP_MS,
-  WAVE_RANGE_G,
-  WAVE_SAMPLES,
   captionFor,
   createPulseDisp,
-  decimate,
+  createTraceState,
   pulseLayout,
   redlineOpacityFor,
   stepPulse,
+  stepTrace,
 } from './pulseModel';
 
 const EMPTY = 'M 0 0'; // a valid, invisible path — Skia throws on '' / malformed strings
@@ -58,6 +58,7 @@ export const PulseTach = React.memo(function PulseTach({ size = 720 }: { size?: 
   const source = useDataSource();
   const t = useTheme();
   const disp = useRef(createPulseDisp()).current;
+  const traceSt = useRef(createTraceState()).current;
   const L = useMemo(() => pulseLayout(size), [size]);
   const { cx, cy, rArc } = L;
 
@@ -68,16 +69,13 @@ export const PulseTach = React.memo(function PulseTach({ size = 720 }: { size?: 
   const litMinor = useSharedValue(EMPTY);
   const litMajor = useSharedValue(EMPTY);
   const headX = useSharedValue(L.wave.x);
-  const headY = useSharedValue(L.wave.y + L.wave.height / 2);
-  const headColor = useSharedValue(t.accent);
+  const headY = useSharedValue(L.wave.y + L.wave.height);
   const redlineOpacity = useSharedValue(0);
 
   // ---- slow state: tick layout flips with OBD; numerals live in <Numerals> ----
   const [obdLive, setObdLive] = useState(false);
   const textsRef = useRef<Texts>({ rpm: 'RING · SPEED', caption: captionFor(disp), speed: '0' });
   const pushTexts = useRef<((t: Texts) => void) | null>(null);
-  const colors = useRef({ accent: t.accent, warn: t.warn });
-  colors.current = { accent: t.accent, warn: t.warn };
 
   const track = useMemo(() => safe(gaugeTrack(cx, cy, rArc)), [cx, cy, rArc]);
   const redline = useMemo(() => safe(gaugeRedline(cx, cy, rArc, L.redFrac)), [cx, cy, rArc, L.redFrac]);
@@ -98,18 +96,18 @@ export const PulseTach = React.memo(function PulseTach({ size = 720 }: { size?: 
       const now = nowMs();
       const dt = last ? Math.min(0.1, (now - last) / 1000) : 0.033;
       last = now;
-      const hist = source.getHistory().longG;
-      const next = stepPulse(disp, source.getSnapshot(), hist, now, dt);
+      const next = stepPulse(disp, source.getSnapshot(), now, dt);
+      // the speed trace has its own change detection (recorder version + curve string)
+      if (stepTrace(traceSt, driveRecorder, L.wave) && traceSt.trace) {
+        waveLine.value = safe(traceSt.trace.line);
+        waveFill.value = safe(traceSt.trace.fill);
+        headX.value = traceSt.trace.head.x;
+        headY.value = traceSt.trace.head.y;
+      }
       if (next !== sig) {
         sig = next;
         // geometry → shared values (UI thread rebuilds the SkPaths; no React render)
         progress.value = safe(gaugeProgress(cx, cy, rArc, disp.frac));
-        const wave = buildWaveform({ samples: decimate(hist, WAVE_SAMPLES), ...L.wave, range: WAVE_RANGE_G });
-        waveLine.value = safe(wave.line);
-        waveFill.value = safe(wave.fill);
-        headX.value = wave.head.x;
-        headY.value = wave.head.y;
-        headColor.value = disp.longG >= 0 ? colors.current.accent : colors.current.warn;
         redlineOpacity.value = disp.obdLive ? redlineOpacityFor(disp) : 0;
 
         if (disp.obdLive !== obd) {
@@ -145,14 +143,11 @@ export const PulseTach = React.memo(function PulseTach({ size = 720 }: { size?: 
     step();
     return () => clearTimeout(timer);
     // shared values are stable; geometry inputs (size) restart the loop
-  }, [source, disp, cx, cy, rArc, L]);
+  }, [source, disp, traceSt, cx, cy, rArc, L]);
 
   const sw = t.stroke; // day theme thickens the ring for direct sun
-  const gradient = useMemo(
-    () => [withAlpha(t.accent, 0.28), withAlpha(t.accent, 0.06), withAlpha(t.accent, 0.28)],
-    [t.accent]
-  );
-  const baseline = L.wave.y + L.wave.height / 2;
+  const gradient = useMemo(() => [withAlpha(t.accent, 0.32), withAlpha(t.accent, 0.03)], [t.accent]);
+  const baseline = L.wave.y + L.wave.height; // zero line under the speed trace
 
   return (
     <View style={{ width: size, height: size }}>
@@ -169,23 +164,23 @@ export const PulseTach = React.memo(function PulseTach({ size = 720 }: { size?: 
         <Path path={unlitMajor} style="stroke" strokeWidth={3 * sw} color={t.panelBorder} opacity={0.95} />
         <Path path={litMinor} style="stroke" strokeWidth={1.4 * sw} color={t.accent} opacity={0.6} />
         <Path path={litMajor} style="stroke" strokeWidth={3 * sw} color={t.accent} opacity={0.95} />
-        {/* zero baseline for the scope */}
+        {/* zero line under the speed trace */}
         <Line p1={vec(L.wave.x, baseline)} p2={vec(L.wave.x + L.wave.width, baseline)} color={t.hairline} strokeWidth={1} style="stroke">
           <DashPathEffect intervals={[2, 6]} />
         </Line>
-        {/* waveform */}
+        {/* speed trace (smooth spline) */}
         <Path path={waveFill} style="fill">
           <LinearGradient
             start={vec(0, L.wave.y)}
             end={vec(0, L.wave.y + L.wave.height)}
             colors={gradient}
-            positions={[0, 0.5, 1]}
+            positions={[0, 1]}
           />
         </Path>
-        <Path path={waveLine} style="stroke" strokeWidth={3 * sw} strokeJoin="round" color={t.accent} />
+        <Path path={waveLine} style="stroke" strokeWidth={3 * sw} strokeJoin="round" strokeCap="round" color={t.accent} />
         {/* leading-edge glow dot */}
-        <Circle cx={headX} cy={headY} r={9} color={headColor} opacity={0.25} />
-        <Circle cx={headX} cy={headY} r={4.5} color={headColor} />
+        <Circle cx={headX} cy={headY} r={9} color={t.accent} opacity={0.25} />
+        <Circle cx={headX} cy={headY} r={4.5} color={t.accent} />
       </Canvas>
 
       <Numerals size={size} L={L} obdLive={obdLive} initial={textsRef.current} register={pushTexts} />
@@ -217,16 +212,16 @@ function Numerals({
   }, [register]);
   return (
     <>
-      <Label y={L.rpmY} size={size * 0.03} mono spacing={3} color={obdLive ? t.accentSoft : t.absent} width={size}>
+      <Label y={L.rpmY} size={size * 0.034} mono spacing={3} color={obdLive ? t.accentSoft : t.absent} width={size}>
         {texts.rpm}
       </Label>
-      <Label y={L.captionY} size={size * 0.022} mono spacing={5} color={t.textFaint} width={size}>
+      <Label y={L.captionY} size={size * 0.026} mono spacing={4} color={t.textFaint} width={size}>
         {texts.caption}
       </Label>
       <Label y={L.speedY} size={size * 0.205} color={t.accent} width={size}>
         {texts.speed}
       </Label>
-      <Label y={L.unitY} size={size * 0.026} mono spacing={4} color={t.textFaint} width={size}>
+      <Label y={L.unitY} size={size * 0.03} mono spacing={4} color={t.textFaint} width={size}>
         MPH · GROUND SPEED
       </Label>
     </>

@@ -176,5 +176,5 @@ const styles = StyleSheet.create({
   clockCol: { position: 'absolute', left: 1460, width: 480, top: 420, alignItems: 'center' },
   switch: { position: 'absolute', left: 1480, top: 860, flexDirection: 'row', gap: 10 },
   seg: { width: 140, height: 96, borderWidth: 1, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
-  segText: { fontFamily: 'JetBrains Mono', fontSize: 15, letterSpacing: 3 },
+  segText: { fontFamily: 'JetBrains Mono', fontSize: 18, letterSpacing: 3 },
 });

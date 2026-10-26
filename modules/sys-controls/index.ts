@@ -26,6 +26,7 @@ interface SysControlsNative {
   setVolume(v: number): void;
   setScreenTimeout(ms: number): void;
   setFontScale(scale: number): void;
+  setImmersive(on: boolean): boolean;
 }
 
 const native = requireOptionalNativeModule<SysControlsNative>('SysControls');
@@ -72,4 +73,13 @@ export async function openWifiSettings(): Promise<void> {
 /** Throws if WRITE_SETTINGS isn't granted. */
 export function setFontScale(scale: number): void {
   native?.setFontScale(scale);
+}
+
+/** Hide the unit's system bars over the dash (swipe from the edge to reveal). */
+export function setImmersive(on: boolean): void {
+  try {
+    native?.setImmersive?.(on);
+  } catch {
+    /* older dev client without it — harmless */
+  }
 }

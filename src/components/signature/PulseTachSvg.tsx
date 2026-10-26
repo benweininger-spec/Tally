@@ -1,5 +1,5 @@
 /**
- * THE SIGNATURE — SVG renderer. Oscilloscope pulse (longitudinal-g history) wrapped
+ * THE SIGNATURE — SVG renderer. A smooth trace of the last minute of speed wrapped
  * by a radial gauge that reads RPM when OBD is live, ground speed before. Modeled on
  * the Tesla Model S energy graph.
  *
@@ -13,26 +13,27 @@
  *    tick. When nothing visible changes (parked) it stops rendering entirely.
  *  - Smooth, not jumpy: a critically-damped follower glides the ring/number/arc
  *    between the discrete GPS/OBD samples (which arrive 2–5Hz) so it never snaps.
- *  - Waveform decimated (240→~100 pts) and scaled to real longitudinal g (±0.40g).
+ *  - Speed trace: 60 s from the always-on drive recorder, box-averaged + splined
+ *    (src/lib/pulse.ts buildTrace) so it rolls like a wave instead of jagging.
  *  - "Moments" (cold-start sweep, OBD-connect sweep) play inside the same loop.
  */
 import React, { useEffect, useMemo, useReducer, useRef } from 'react';
 import { View } from 'react-native';
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop, Text as SvgText } from 'react-native-svg';
 import { useDataSource } from '../../data/DataSourceProvider';
+import { driveRecorder } from '../../data/driveRecorder';
 import { useTheme } from '../../theme/ThemeProvider';
-import { buildWaveform, gaugeProgress, gaugeRedline, gaugeTicks, gaugeTrack } from '../../lib/pulse';
+import { gaugeProgress, gaugeRedline, gaugeTicks, gaugeTrack } from '../../lib/pulse';
 import { nowMs } from './sweepChannel';
 import {
   LOOP_MS,
-  WAVE_RANGE_G,
-  WAVE_SAMPLES,
   captionFor,
   createPulseDisp,
-  decimate,
+  createTraceState,
   pulseLayout,
   redlineOpacityFor,
   stepPulse,
+  stepTrace,
 } from './pulseModel';
 
 export const PulseTach = React.memo(function PulseTach({ size = 720 }: { size?: number }) {
@@ -41,6 +42,7 @@ export const PulseTach = React.memo(function PulseTach({ size = 720 }: { size?: 
   const [, force] = useReducer((c: number) => (c + 1) % 1_000_000, 0);
   // smoothed display values, mutated by the loop (never trigger a render themselves)
   const disp = useRef(createPulseDisp()).current;
+  const traceSt = useRef(createTraceState()).current;
   const sigRef = useRef('');
   const L = useMemo(() => pulseLayout(size), [size]);
 
@@ -53,8 +55,9 @@ export const PulseTach = React.memo(function PulseTach({ size = 720 }: { size?: 
       const now = nowMs();
       const dt = last ? Math.min(0.1, (now - last) / 1000) : 0.033;
       last = now;
-      const sig = stepPulse(disp, source.getSnapshot(), source.getHistory().longG, now, dt);
-      if (sig !== sigRef.current) {
+      const sig = stepPulse(disp, source.getSnapshot(), now, dt);
+      const traceMoved = stepTrace(traceSt, driveRecorder, L.wave);
+      if (sig !== sigRef.current || traceMoved) {
         sigRef.current = sig;
         force();
       }
@@ -62,7 +65,7 @@ export const PulseTach = React.memo(function PulseTach({ size = 720 }: { size?: 
     };
     step();
     return () => clearTimeout(timer);
-  }, [source, disp]);
+  }, [source, disp, traceSt, L]);
 
   const { cx, cy, rArc } = L;
   // static geometry — recomputed only when size / gauge-mode changes, not per frame
@@ -75,15 +78,10 @@ export const PulseTach = React.memo(function PulseTach({ size = 720 }: { size?: 
   const speed = Math.round(disp.speed);
   const frac = disp.frac;
 
-  const wave = buildWaveform({
-    samples: decimate(source.getHistory().longG, WAVE_SAMPLES),
-    ...L.wave,
-    range: WAVE_RANGE_G,
-  });
+  const wave = traceSt.trace;
 
   const progress = gaugeProgress(cx, cy, rArc, frac);
   const sw = t.stroke; // day theme thickens the ring for direct sun
-  const headColor = disp.longG >= 0 ? t.accent : t.warn;
   const redlineOpacity = redlineOpacityFor(disp);
   const caption = captionFor(disp);
 
@@ -92,9 +90,8 @@ export const PulseTach = React.memo(function PulseTach({ size = 720 }: { size?: 
       <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         <Defs>
           <LinearGradient id="waveFill" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={t.accent} stopOpacity={0.28} />
-            <Stop offset="0.5" stopColor={t.accent} stopOpacity={0.06} />
-            <Stop offset="1" stopColor={t.accent} stopOpacity={0.28} />
+            <Stop offset="0" stopColor={t.accent} stopOpacity={0.32} />
+            <Stop offset="1" stopColor={t.accent} stopOpacity={0.03} />
           </LinearGradient>
         </Defs>
 
@@ -128,30 +125,34 @@ export const PulseTach = React.memo(function PulseTach({ size = 720 }: { size?: 
           />
         ))}
 
-        {/* zero baseline for the scope */}
+        {/* zero line under the speed trace */}
         <Line
           x1={L.wave.x}
-          y1={wave.baseline}
+          y1={L.wave.y + L.wave.height}
           x2={L.wave.x + L.wave.width}
-          y2={wave.baseline}
+          y2={L.wave.y + L.wave.height}
           stroke={t.hairline}
           strokeWidth={1}
           strokeDasharray="2 6"
         />
 
-        {/* waveform */}
-        <Path d={wave.fill} fill="url(#waveFill)" />
-        <Path d={wave.line} stroke={t.accent} strokeWidth={3 * sw} fill="none" strokeLinejoin="round" />
-        {/* leading-edge glow dot */}
-        <Circle cx={wave.head.x} cy={wave.head.y} r={9} fill={headColor} opacity={0.25} />
-        <Circle cx={wave.head.x} cy={wave.head.y} r={4.5} fill={headColor} />
+        {/* speed trace (smooth spline) */}
+        {wave && (
+          <>
+            <Path d={wave.fill} fill="url(#waveFill)" />
+            <Path d={wave.line} stroke={t.accent} strokeWidth={3 * sw} fill="none" strokeLinejoin="round" strokeLinecap="round" />
+            {/* leading-edge glow dot */}
+            <Circle cx={wave.head.x} cy={wave.head.y} r={9} fill={t.accent} opacity={0.25} />
+            <Circle cx={wave.head.x} cy={wave.head.y} r={4.5} fill={t.accent} />
+          </>
+        )}
 
         {/* RPM indicator at the very top of the ring — only meaningful with OBD */}
         <SvgText
           x={cx}
           y={L.rpmY}
           fill={obdLive ? t.accentSoft : t.absent}
-          fontSize={size * 0.03}
+          fontSize={size * 0.034}
           fontFamily={t.fontMono}
           textAnchor="middle"
           letterSpacing={3}
@@ -164,7 +165,7 @@ export const PulseTach = React.memo(function PulseTach({ size = 720 }: { size?: 
           x={cx}
           y={L.captionY}
           fill={t.textFaint}
-          fontSize={size * 0.022}
+          fontSize={size * 0.026}
           fontFamily={t.fontMono}
           textAnchor="middle"
           letterSpacing={5}
@@ -188,7 +189,7 @@ export const PulseTach = React.memo(function PulseTach({ size = 720 }: { size?: 
           x={cx}
           y={L.unitY}
           fill={t.textFaint}
-          fontSize={size * 0.026}
+          fontSize={size * 0.03}
           fontFamily={t.fontMono}
           textAnchor="middle"
           letterSpacing={4}

@@ -15,7 +15,9 @@
  */
 import * as IntentLauncher from 'expo-intent-launcher';
 
-export const RADIO_PACKAGES = ['com.syu.radio', 'com.syu.carradio', 'com.fyt.radio'];
+// com.microntek.radio is THIS unit's tuner app (FACT: `pm list packages`, launchable
+// .MainActivity, 2026-10-23); the others are other FYT/SYU firmwares' names.
+export const RADIO_PACKAGES = ['com.microntek.radio', 'com.syu.radio', 'com.syu.carradio', 'com.fyt.radio'];
 
 /** Open the first installed factory-radio app. Throws if none resolve. */
 export function launchFactoryRadio(packages: string[] = RADIO_PACKAGES): void {

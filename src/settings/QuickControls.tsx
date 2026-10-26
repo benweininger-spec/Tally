@@ -101,7 +101,7 @@ export function QuickControls({ t, visible }: { t: Theme; visible: boolean }) {
       </ControlRow>
       {avail && !canWrite && (
         <View style={styles.btnRow}>
-          <Btn t={t} label="ALLOW BRIGHTNESS + TIMEOUT CONTROL" onPress={requestWriteSettings} />
+          <Btn t={t} label="ALLOW BRIGHTNESS, TEXT SIZE + TIMEOUT" onPress={requestWriteSettings} />
         </View>
       )}
 
@@ -130,19 +130,23 @@ export function QuickControls({ t, visible }: { t: Theme; visible: boolean }) {
           return (
             <Press
               key={o.label}
-              disabled={!canWrite}
+              disabled={!avail}
               onPress={() =>
-                guard(() => {
-                  setFontScale(o.scale);
-                  setS((cur) => (cur ? { ...cur, fontScale: o.scale } : cur));
-                })
+                // not granted yet → the tap opens Android's "Modify system settings" page
+                // (they used to sit greyed out with no hint why — 2026-10-26)
+                !canWrite
+                  ? requestWriteSettings()
+                  : guard(() => {
+                      setFontScale(o.scale);
+                      setS((cur) => (cur ? { ...cur, fontScale: o.scale } : cur));
+                    })
               }
               style={[
                 styles.chip,
                 {
                   borderColor: active ? t.accent : t.panelBorder,
                   backgroundColor: active ? t.panel : 'transparent',
-                  opacity: canWrite ? 1 : 0.4,
+                  opacity: canWrite ? 1 : avail ? 0.6 : 0.4,
                 },
               ]}
             >
@@ -159,19 +163,21 @@ export function QuickControls({ t, visible }: { t: Theme; visible: boolean }) {
           return (
             <Press
               key={o.label}
-              disabled={!canWrite}
+              disabled={!avail}
               onPress={() =>
-                guard(() => {
-                  setScreenTimeout(o.ms);
-                  setS((cur) => (cur ? { ...cur, screenTimeoutMs: o.ms } : cur));
-                })
+                !canWrite
+                  ? requestWriteSettings()
+                  : guard(() => {
+                      setScreenTimeout(o.ms);
+                      setS((cur) => (cur ? { ...cur, screenTimeoutMs: o.ms } : cur));
+                    })
               }
               style={[
                 styles.chip,
                 {
                   borderColor: active ? t.accent : t.panelBorder,
                   backgroundColor: active ? t.panel : 'transparent',
-                  opacity: canWrite ? 1 : 0.4,
+                  opacity: canWrite ? 1 : avail ? 0.6 : 0.4,
                 },
               ]}
             >
@@ -223,14 +229,14 @@ function RadioRow({
 }
 
 const styles = StyleSheet.create({
-  hint: { fontFamily: 'JetBrains Mono', fontSize: 13, lineHeight: 19 },
+  hint: { fontFamily: 'JetBrains Mono', fontSize: 16, lineHeight: 19 },
   btnRow: { flexDirection: 'row', gap: 16 },
   rowHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  rowLabel: { fontFamily: 'JetBrains Mono', fontSize: 15, letterSpacing: 2 },
+  rowLabel: { fontFamily: 'JetBrains Mono', fontSize: 18, letterSpacing: 2 },
   rowValue: { fontFamily: 'Oxanium', fontSize: 24, fontWeight: '700' },
   radioRow: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 72 },
   dot: { width: 12, height: 12, borderRadius: 6 },
-  radioState: { fontFamily: 'JetBrains Mono', fontSize: 15, letterSpacing: 2, width: 60, textAlign: 'right' },
+  radioState: { fontFamily: 'JetBrains Mono', fontSize: 18, letterSpacing: 2, width: 60, textAlign: 'right' },
   chips: { flexDirection: 'row', gap: 12 },
   chip: { flex: 1, height: 72, borderWidth: 1, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
   chipText: { fontFamily: 'Oxanium', fontSize: 18, fontWeight: '700', letterSpacing: 1 },

@@ -28,6 +28,14 @@ export interface Trip {
   miles: number;
   fuelMiles: number;
   gallons: number;
+  /** trip-summary stats (absent on trips logged before 2026-10-26) */
+  movingSec?: number;
+  idleSec?: number;
+  /** seconds spent moving with the smoothed instant mpg in the ECO zone */
+  ecoSec?: number;
+  /** seconds moving with an mpg reading at all (the eco % denominator) */
+  scoredSec?: number;
+  maxMph?: number;
 }
 
 export interface MpgLog {
@@ -95,7 +103,7 @@ export function addDelta(log: MpgLog, date: string, dMiles: number, dGal: number
 /** Start a trip at `t` (ending any trip still open). */
 export function tripStart(log: MpgLog, t: number): MpgLog {
   if (log.current) tripEnd(log, t);
-  log.current = { startedAt: t, endedAt: null, miles: 0, fuelMiles: 0, gallons: 0 };
+  log.current = { startedAt: t, endedAt: null, miles: 0, fuelMiles: 0, gallons: 0, movingSec: 0, idleSec: 0, ecoSec: 0, scoredSec: 0, maxMph: 0 };
   return log;
 }
 
@@ -109,6 +117,31 @@ export function tripUpdate(log: MpgLog, dMiles: number, dGal: number, measuring 
   c.gallons += gal;
   if (measuring) c.fuelMiles += mi;
   return log;
+}
+
+/**
+ * Time-based trip stats for the summary card: moving vs idling, time in the ECO zone
+ * (`eco` null = no mpg reading → not scored), top speed. `dtSec` is real elapsed time.
+ */
+export function tripTick(log: MpgLog, dtSec: number, speedMph: number, eco: boolean | null): MpgLog {
+  const c = log.current;
+  if (!c || !(dtSec > 0) || dtSec > 5) return log; // a frozen / slept gap isn't driving time
+  const moving = speedMph >= 1;
+  if (moving) {
+    c.movingSec = (c.movingSec ?? 0) + dtSec;
+    if (eco != null) {
+      c.scoredSec = (c.scoredSec ?? 0) + dtSec;
+      if (eco) c.ecoSec = (c.ecoSec ?? 0) + dtSec;
+    }
+  } else c.idleSec = (c.idleSec ?? 0) + dtSec;
+  if (Number.isFinite(speedMph) && speedMph > (c.maxMph ?? 0)) c.maxMph = speedMph;
+  return log;
+}
+
+/** Share of scored moving time spent in the ECO zone (0..1), or null if too little data. */
+export function ecoShare(t: Trip): number | null {
+  const s = t.scoredSec ?? 0;
+  return s >= 30 ? Math.min(1, (t.ecoSec ?? 0) / s) : null;
 }
 
 /** Close the trip in progress at `t`; trips under MIN_TRIP_MILES are dropped. */
@@ -200,6 +233,9 @@ export function normalizeLog(raw: unknown): MpgLog {
           miles: num(t.miles),
           fuelMiles: num(t.fuelMiles),
           gallons: num(t.gallons),
+          ...(typeof t.movingSec === 'number'
+            ? { movingSec: num(t.movingSec), idleSec: num(t.idleSec), ecoSec: num(t.ecoSec), scoredSec: num(t.scoredSec), maxMph: num(t.maxMph) }
+            : null),
         }
       : null;
   if (Array.isArray(r.trips)) {

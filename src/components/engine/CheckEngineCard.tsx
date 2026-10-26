@@ -170,17 +170,17 @@ export const CheckEngineCard = React.memo(function CheckEngineCard() {
 
 const s = StyleSheet.create({
   headRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  count: { fontFamily: 'JetBrains Mono', fontSize: 14, letterSpacing: 2 },
+  count: { fontFamily: 'JetBrains Mono', fontSize: 17, letterSpacing: 2 },
   lamp: { width: 22, height: 22, borderRadius: 11, borderWidth: 2 },
   body: { flex: 1, flexDirection: 'row', gap: 18 },
   list: { flex: 1, gap: 10, justifyContent: 'center' },
-  empty: { fontFamily: 'JetBrains Mono', fontSize: 15, letterSpacing: 2 },
+  empty: { fontFamily: 'JetBrains Mono', fontSize: 18, letterSpacing: 2 },
   ok: { fontFamily: 'Oxanium', fontSize: 30, fontWeight: '700', letterSpacing: 1 },
   codeRow: { gap: 2 },
   code: { fontFamily: 'Oxanium', fontSize: 30, fontWeight: '700', letterSpacing: 1 },
-  desc: { fontFamily: 'JetBrains Mono', fontSize: 13, letterSpacing: 0.5, lineHeight: 18 },
+  desc: { fontFamily: 'JetBrains Mono', fontSize: 16, letterSpacing: 0.5, lineHeight: 18 },
   btnCol: { width: 210, justifyContent: 'center', gap: 8 },
   btn: { height: 112, borderWidth: 2, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   btnText: { fontFamily: 'Oxanium', fontSize: 22, fontWeight: '700', letterSpacing: 2 },
-  note: { fontFamily: 'JetBrains Mono', fontSize: 11, letterSpacing: 1.5, textAlign: 'center' },
+  note: { fontFamily: 'JetBrains Mono', fontSize: 15, letterSpacing: 1.5, textAlign: 'center' },
 });

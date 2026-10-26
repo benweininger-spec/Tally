@@ -50,6 +50,6 @@ const signedInt = (v: number) => (v >= 0 ? '+' : '−') + Math.abs(v);
 const styles = StyleSheet.create({
   strip: { flexDirection: 'row', gap: GAP, width: STRIP_W },
   cell: { borderWidth: 1, borderRadius: 6, paddingVertical: 12, paddingHorizontal: PAD_X, justifyContent: 'center' },
-  cellLabel: { fontFamily: 'JetBrains Mono', fontSize: 13, letterSpacing: 2 },
+  cellLabel: { fontFamily: 'JetBrains Mono', fontSize: 16, letterSpacing: 2 },
   cellValue: { fontFamily: 'Oxanium', fontSize: 30, fontWeight: '600', marginTop: 2 },
 });

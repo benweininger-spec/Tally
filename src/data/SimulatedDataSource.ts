@@ -226,24 +226,37 @@ export class SimulatedDataSource implements DataSource {
     return this.snapshot();
   }
 
+  /** Tacoma-believable: ~24–26 cruising at 40–50, single digits pulling away, high coasting. */
   private simInstantMpg(): number {
-    return clamp(60 - this.speed * 0.4 - Math.max(0, this.longG) * 30, 4, 55);
+    const cruise = 26 - Math.abs(this.speed - 45) * 0.12;
+    const accel = Math.max(0, this.longG) * 45;
+    const coast = this.longG < -0.04 ? 18 : 0;
+    return clamp(cruise - accel + coast, 5, 60);
+  }
+
+  /** gal/h: speed ÷ mpg on the move, ~0.3 at idle (the 2TR-FE measured 0.30 at 750 rpm) */
+  private simFuelRate(): number {
+    return this.speed >= 1 ? this.speed / this.simInstantMpg() : 0.3;
   }
 
   // ---- derive an OBD view from physical state (when "connected") ----
+  /**
+   * The truck's real driveline: AC60E 6-speed ratios × K (axle 3.909, 245/75R16 ≈ 43.1
+   * rpm/mph per unit ratio — the same numbers src/lib/gear.ts reads gears back out of; kept
+   * inline because this file must stay runtime-self-contained). Upshift points by speed.
+   */
   private deriveRpm(): number {
-    // crude gear model: pick gear from speed, map to rpm band
-    const ratios = [0, 45, 70, 95, 120, 150]; // mph per 1000rpm-ish breakpoints
-    let gear = 1;
-    for (let g = ratios.length - 1; g >= 1; g--) {
-      if (this.speed >= (g - 1) * 12) {
-        gear = g;
+    const ratios = [3.6, 2.09, 1.488, 1.0, 0.687, 0.58];
+    const upAt = [0, 13, 22, 32, 41, 48]; // mph where each gear takes over
+    let g = 0;
+    for (let i = upAt.length - 1; i >= 0; i--) {
+      if (this.speed >= upAt[i]) {
+        g = i;
         break;
       }
     }
-    const base = 800 + (this.speed / (ratios[gear] || 60)) * 1000 * (6 - gear) * 0.55;
-    const throttleKick = Math.max(0, this.longG) * 1400;
-    return clamp(base + throttleKick, 700, 5200);
+    const rpm = this.speed * 43.1 * ratios[g] * (g < 2 ? 1.06 : 1); // a little converter slip low
+    return clamp(Math.max(720, rpm), 700, 5200);
   }
 
   private snapshot(): DashboardData {
@@ -303,7 +316,9 @@ export class SimulatedDataSource implements DataSource {
         intakeTempF: obd ? mk(88) : no(),
         oilTempF: obd ? mk(210) : no(),
         ambientTempF: obd ? mk(79) : no(),
-        fuelLevelPct: obd ? mk(64) : no(),
+        // the real 2TR-FE doesn't report tank level (no PID 2F) — the sim matches, so the
+        // preview shows the fill-up estimate path the truck actually uses
+        fuelLevelPct: no(),
         instantMpg: obd ? mk(round1(this.simInstantMpg())) : no(),
         avgMpg: obd ? mk(21.3) : no(),
         runTimeSec: obd ? mk(this.movingSec) : no(),
@@ -321,6 +336,10 @@ export class SimulatedDataSource implements DataSource {
         transTempF: obd ? mk(Math.round(this.transTemp)) : no(),
         // a believable last run so the ENGINE face's 0–60 tile is lit in the preview
         zeroToSixtySec: obd ? mk(9.4) : no(),
+        fuelRateGph: obd ? mk(Math.round(this.simFuelRate() * 100) / 100) : no(),
+        // gal/h → g/s: ×3600 / (14.7 AFR × 6.17 lb/gal × 453.592 g/lb)
+        mafGps: obd ? mk(round1(this.simFuelRate() / 0.0874)) : no(),
+        ecuSpeedMph: obd ? mk(Math.round(this.speed * 1.02)) : no(),
       },
       body: {
         supported: false,
