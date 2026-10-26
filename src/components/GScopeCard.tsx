@@ -17,10 +17,10 @@ export const GScopeCard = React.memo(function GScopeCard() {
     <View style={[styles.card, { borderColor: t.panelBorder, backgroundColor: t.panel }]}>
       <View style={styles.head}>
         <View>
-          <Text style={[styles.title, { color: t.textFaint }]}>TRACTION</Text>
-          <Text style={[styles.peak, { color: t.textFaint }]}>PEAK {r.peak}G</Text>
+          <Text allowFontScaling={false} style={[styles.title, { color: t.textFaint }]}>TRACTION</Text>
+          <Text allowFontScaling={false} style={[styles.peak, { color: t.textFaint }]}>PEAK {r.peak}G</Text>
         </View>
-        <Text style={[styles.g, { color: r.g === '—' ? t.absent : t.text }]}>{r.g === '—' ? '—' : `${r.g}g`}</Text>
+        <Text allowFontScaling={false} style={[styles.g, { color: r.g === '—' ? t.absent : t.text }]}>{r.g === '—' ? '—' : `${r.g}g`}</Text>
       </View>
       <GScope size={300} onReadout={setR} />
     </View>

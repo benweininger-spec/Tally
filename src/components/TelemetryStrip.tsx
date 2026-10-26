@@ -37,8 +37,8 @@ export const TelemetryStrip = React.memo(function TelemetryStrip() {
         ] as const
       ).map(([label, value]) => (
         <View key={label} style={[cell, { width: ANGLE_W }]}>
-          <Text style={[styles.cellLabel, { color: t.textFaint }]}>{label}</Text>
-          <Text style={[styles.cellValue, { color: t.text }]}>{value}</Text>
+          <Text allowFontScaling={false} style={[styles.cellLabel, { color: t.textFaint }]}>{label}</Text>
+          <Text allowFontScaling={false} style={[styles.cellValue, { color: t.text }]}>{value}</Text>
         </View>
       ))}
     </View>

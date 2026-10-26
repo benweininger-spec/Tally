@@ -154,9 +154,9 @@ function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => 
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         <View style={[styles.sheet, { backgroundColor: t.bg, borderColor: t.panelBorder }]}>
           <View style={styles.headerRow}>
-            <Text style={[styles.title, { color: t.accent }]}>SETTINGS</Text>
+            <Text allowFontScaling={false} style={[styles.title, { color: t.accent }]}>SETTINGS</Text>
             <Press hitSlop={16} onPress={onClose}>
-              <Text style={[styles.close, { color: t.textDim }]}>CLOSE ✕</Text>
+              <Text allowFontScaling={false} style={[styles.close, { color: t.textDim }]}>CLOSE ✕</Text>
             </Press>
           </View>
 
@@ -188,7 +188,7 @@ function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => 
                         { borderColor: active ? t.accent : t.panelBorder, backgroundColor: active ? t.panel : 'transparent' },
                       ]}
                     >
-                      <Text style={[styles.toggleText, { color: active ? t.accent : t.textDim }]}>
+                      <Text allowFontScaling={false} style={[styles.toggleText, { color: active ? t.accent : t.textDim }]}>
                         {m === 'sim' ? 'SIMULATOR' : 'LIVE'}
                       </Text>
                     </Press>
@@ -196,7 +196,7 @@ function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => 
                 })}
               </View>
               {isWeb && (
-                <Text style={[styles.hint, { color: t.textFaint }]}>
+                <Text allowFontScaling={false} style={[styles.hint, { color: t.textFaint }]}>
                   Live mode needs a device dev build — on web it stays simulated.
                 </Text>
               )}
@@ -216,12 +216,12 @@ function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => 
                         { borderColor: active ? t.accent : t.panelBorder, backgroundColor: active ? t.panel : 'transparent' },
                       ]}
                     >
-                      <Text style={[styles.toggleText, { color: active ? t.accent : t.textDim }]}>{m.toUpperCase()}</Text>
+                      <Text allowFontScaling={false} style={[styles.toggleText, { color: active ? t.accent : t.textDim }]}>{m.toUpperCase()}</Text>
                     </Press>
                   );
                 })}
               </View>
-              <Text style={[styles.hint, { color: t.textFaint }]}>
+              <Text allowFontScaling={false} style={[styles.hint, { color: t.textFaint }]}>
                 AUTO follows your headlights (then daylight) with a slow 30 s fade. LIGHT and DARK override it.
               </Text>
               <View style={styles.btnRow}>
@@ -244,14 +244,14 @@ function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => 
                         { borderColor: active ? t.accent : t.panelBorder, backgroundColor: active ? t.panel : 'transparent' },
                       ]}
                     >
-                      <Text style={[styles.toggleText, { color: active ? t.accent : t.textDim }]}>
+                      <Text allowFontScaling={false} style={[styles.toggleText, { color: active ? t.accent : t.textDim }]}>
                         {r ? 'REDUCED' : 'FULL'}
                       </Text>
                     </Press>
                   );
                 })}
               </View>
-              <Text style={[styles.hint, { color: t.textFaint }]}>
+              <Text allowFontScaling={false} style={[styles.hint, { color: t.textFaint }]}>
                 REDUCED skips the startup sweep and the OBD-connect animation. Instruments are unaffected.
               </Text>
             </Section>
@@ -264,9 +264,9 @@ function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => 
               {tierRows.map((r) => (
                 <View key={r.label} style={styles.statusRow}>
                   <View style={[styles.dot, { backgroundColor: statusColor(r.status, t) }]} />
-                  <Text style={[styles.statusLabel, { color: t.text }]}>{r.label}</Text>
-                  <Text style={[styles.statusDetail, { color: t.textFaint }]}>{r.detail}</Text>
-                  <Text style={[styles.statusValue, { color: statusColor(r.status, t) }]}>
+                  <Text allowFontScaling={false} style={[styles.statusLabel, { color: t.text }]}>{r.label}</Text>
+                  <Text allowFontScaling={false} style={[styles.statusDetail, { color: t.textFaint }]}>{r.detail}</Text>
+                  <Text allowFontScaling={false} style={[styles.statusValue, { color: statusColor(r.status, t) }]}>
                     {statusLabel(r.status)}
                   </Text>
                 </View>
@@ -275,7 +275,7 @@ function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => 
 
             {/* dock customization */}
             <Section t={t} title="DOCK">
-              <Text style={[styles.hint, { color: t.textFaint }]}>
+              <Text allowFontScaling={false} style={[styles.hint, { color: t.textFaint }]}>
                 CarPlay, APPS and SET are pinned. To add an app, open APPS and hold its tile. Link
                 tiles open a deep link instead (waze://, geo:0,0, …). Up to {MAX_DOCK_TILES} tiles.
               </Text>
@@ -289,7 +289,7 @@ function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => 
                     style={[styles.input, styles.labelInput, { color: t.text, borderColor: t.hairline }]}
                   />
                   {tile.package ? (
-                    <Text numberOfLines={1} style={[styles.pkg, { color: t.textFaint }]}>
+                    <Text allowFontScaling={false} numberOfLines={1} style={[styles.pkg, { color: t.textFaint }]}>
                       {tile.package}
                       {tile.url ? `  ·  ${tile.url}` : ''}
                     </Text>
@@ -305,13 +305,13 @@ function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => 
                     />
                   )}
                   <Press onPress={() => moveTile(i, -1)} style={styles.iconBtn} hitSlop={6}>
-                    <Text style={[styles.icon, { color: i === 0 ? t.absent : t.textDim }]}>▲</Text>
+                    <Text allowFontScaling={false} style={[styles.icon, { color: i === 0 ? t.absent : t.textDim }]}>▲</Text>
                   </Press>
                   <Press onPress={() => moveTile(i, 1)} style={styles.iconBtn} hitSlop={6}>
-                    <Text style={[styles.icon, { color: i === tiles.length - 1 ? t.absent : t.textDim }]}>▼</Text>
+                    <Text allowFontScaling={false} style={[styles.icon, { color: i === tiles.length - 1 ? t.absent : t.textDim }]}>▼</Text>
                   </Press>
                   <Press onPress={() => removeTile(i)} style={styles.iconBtn} hitSlop={6}>
-                    <Text style={[styles.icon, { color: t.warn }]}>✕</Text>
+                    <Text allowFontScaling={false} style={[styles.icon, { color: t.warn }]}>✕</Text>
                   </Press>
                 </View>
               ))}
@@ -326,7 +326,7 @@ function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => 
             {live && (
               <>
                 <Section t={t} title="G-SENSOR CALIBRATION">
-                  <Text style={[styles.hint, { color: t.textFaint }]}>
+                  <Text allowFontScaling={false} style={[styles.hint, { color: t.textFaint }]}>
                     1) Park level, tap Calibrate Level. 2) On an open road, tap Forward and
                     accelerate straight for ~2s.
                   </Text>
@@ -375,11 +375,11 @@ function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => 
                           onPress={() => run('connect', () => live.connectObd(d.address), `✓ ${d.name}`)}
                           style={[styles.deviceRow, { borderColor: t.hairline }]}
                         >
-                          <Text style={[styles.deviceName, { color: t.text }]}>{d.name || '(unnamed)'}</Text>
-                          <Text style={[styles.deviceMac, { color: t.textFaint }]}>{d.address}</Text>
+                          <Text allowFontScaling={false} style={[styles.deviceName, { color: t.text }]}>{d.name || '(unnamed)'}</Text>
+                          <Text allowFontScaling={false} style={[styles.deviceMac, { color: t.textFaint }]}>{d.address}</Text>
                         </Press>
                       ))}
-                      <Text style={[styles.hint, { color: t.textFaint }]}>
+                      <Text allowFontScaling={false} style={[styles.hint, { color: t.textFaint }]}>
                         Pair the dongle once in Android Bluetooth settings, then Connect once. After
                         that it's remembered and reconnects by itself whenever the truck starts.
                       </Text>
@@ -387,7 +387,7 @@ function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => 
                   ) : (
                     <>
                       <Btn t={t} label="DISCONNECT OBD" onPress={() => live.disconnectObd()} />
-                      <Text style={[styles.hint, { color: t.textFaint }]}>
+                      <Text allowFontScaling={false} style={[styles.hint, { color: t.textFaint }]}>
                         Disconnecting pauses auto-connect until you tap Connect or the next ignition-on.
                       </Text>
                     </>
@@ -399,7 +399,7 @@ function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => 
                 </Section>
 
                 <Section t={t} title="MEDIA ACCESS">
-                  <Text style={[styles.hint, { color: t.textFaint }]}>
+                  <Text allowFontScaling={false} style={[styles.hint, { color: t.textFaint }]}>
                     Now-playing needs Notification access. If sideloaded, first allow restricted
                     settings for this app, then enable it here.
                   </Text>
@@ -416,7 +416,7 @@ function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => 
               </>
             )}
 
-            {note && <Text style={[styles.note, { color: t.text }]}>{note}</Text>}
+            {note && <Text allowFontScaling={false} style={[styles.note, { color: t.text }]}>{note}</Text>}
           </ScrollView>
         </View>
       </View>
@@ -439,7 +439,7 @@ function SimSection({
   if (!sim) return null;
   return (
     <Section t={t} title="SIMULATOR">
-      <Text style={[styles.hint, { color: t.textFaint }]}>DAYLIGHT (drives THEME → AUTO and the night-face suggestion)</Text>
+      <Text allowFontScaling={false} style={[styles.hint, { color: t.textFaint }]}>DAYLIGHT (drives THEME → AUTO and the night-face suggestion)</Text>
       <View style={styles.toggleRow}>
         {([null, true, false] as const).map((v) => (
           <Toggle
@@ -454,7 +454,7 @@ function SimSection({
           />
         ))}
       </View>
-      <Text style={[styles.hint, { color: t.textFaint }]}>OBD DONGLE (plays the connect moment)</Text>
+      <Text allowFontScaling={false} style={[styles.hint, { color: t.textFaint }]}>OBD DONGLE (plays the connect moment)</Text>
       <View style={styles.toggleRow}>
         <Toggle
           t={t}
@@ -488,7 +488,7 @@ function Toggle({
       onPress={onPress}
       style={[styles.toggle, { borderColor: active ? t.accent : t.panelBorder, backgroundColor: active ? t.panel : 'transparent' }]}
     >
-      <Text style={[styles.toggleText, { color: active ? t.accent : t.textDim }]}>{label}</Text>
+      <Text allowFontScaling={false} style={[styles.toggleText, { color: active ? t.accent : t.textDim }]}>{label}</Text>
     </Press>
   );
 }
@@ -520,9 +520,9 @@ function ObdAutoLine({ t, live }: { t: ReturnType<typeof useTheme>; live: LiveCo
   const color = st.obdAuto === 'connected' ? t.accent : st.obdAuto === 'off' ? t.textFaint : t.textDim;
   return (
     <View style={{ gap: 4 }}>
-      <Text style={[styles.hint, { color }]}>{line}</Text>
+      <Text allowFontScaling={false} style={[styles.hint, { color }]}>{line}</Text>
       {st.obdAuto !== 'connected' && st.obdAuto !== 'off' && st.obdLastError ? (
-        <Text numberOfLines={2} style={[styles.hint, { color: t.textFaint }]}>
+        <Text allowFontScaling={false} numberOfLines={2} style={[styles.hint, { color: t.textFaint }]}>
           last try: {st.obdLastError}
         </Text>
       ) : null}
@@ -554,36 +554,36 @@ function ObdDiagnosticsView({ t, live }: { t: ReturnType<typeof useTheme>; live:
     return () => clearInterval(id);
   }, [live]);
   if (!d) {
-    return <Text style={[styles.hint, { color: t.textFaint }]}>No OBD link yet — shows each value once the dongle connects.</Text>;
+    return <Text allowFontScaling={false} style={[styles.hint, { color: t.textFaint }]}>No OBD link yet — shows each value once the dongle connects.</Text>;
   }
   const color = (h: PidHealth) => (h === 'ok' ? t.accent : h === 'unsupported' ? t.textFaint : h === 'waiting' ? t.textDim : t.warn);
   return (
     <View style={{ gap: 6 }}>
-      <Text style={[styles.hint, { color: t.textDim }]}>
+      <Text allowFontScaling={false} style={[styles.hint, { color: t.textDim }]}>
         {d.adapter ?? 'adapter ?'} · protocol {d.protocol ?? '?'} · {d.pollHz} replies/s{d.fastReplies ? ' (fast mode)' : ''} · ECU{' '}
         {d.ecuAwake ? 'awake' : 'asleep (key off?)'}
       </Text>
       {d.rows.map((r) => (
         <View key={r.pid} style={[styles.diagRow, { borderColor: t.hairline }]}>
-          <Text style={[styles.diagPid, { color: t.textFaint }]}>{hexPid(r.pid)}</Text>
+          <Text allowFontScaling={false} style={[styles.diagPid, { color: t.textFaint }]}>{hexPid(r.pid)}</Text>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.diagName, { color: t.text }]}>{r.label}</Text>
-            {PID_FEEDS[r.pid] ? <Text style={[styles.diagFeeds, { color: t.textFaint }]}>{PID_FEEDS[r.pid]}</Text> : null}
+            <Text allowFontScaling={false} style={[styles.diagName, { color: t.text }]}>{r.label}</Text>
+            {PID_FEEDS[r.pid] ? <Text allowFontScaling={false} style={[styles.diagFeeds, { color: t.textFaint }]}>{PID_FEEDS[r.pid]}</Text> : null}
           </View>
-          <Text style={[styles.diagVal, { color: t.textDim }]}>
+          <Text allowFontScaling={false} style={[styles.diagVal, { color: t.textDim }]}>
             {r.lastValue != null && r.lastAt != null ? `${Math.round(r.lastValue * 100) / 100} · ${Math.round((now - r.lastAt) / 1000)}s ago` : ''}
           </Text>
-          <Text style={[styles.diagHealth, { color: color(r.health) }]}>{HEALTH_TEXT[r.health]}</Text>
+          <Text allowFontScaling={false} style={[styles.diagHealth, { color: color(r.health) }]}>{HEALTH_TEXT[r.health]}</Text>
         </View>
       ))}
-      <Text style={[styles.hint, { color: t.textFaint }]}>
+      <Text allowFontScaling={false} style={[styles.hint, { color: t.textFaint }]}>
         Truck reports support for:{' '}
         {d.supportKnown ? d.supported.map(hexPid).join(' ') : 'unknown — the support query got no answer (key off when it connected?)'}
       </Text>
-      <Text style={[styles.hint, { color: t.textFaint }]}>
+      <Text allowFontScaling={false} style={[styles.hint, { color: t.textFaint }]}>
         Transmission temp probe: {d.transProbe ? `answering (${d.transProbe})` : d.ecuAwake ? 'no answer yet' : 'waits for the engine'}
       </Text>
-      <Text style={[styles.hint, { color: t.textFaint }]}>
+      <Text allowFontScaling={false} style={[styles.hint, { color: t.textFaint }]}>
         Fuel level (gauge cluster) probe: {d.fuelProbe ? `answering (${d.fuelProbe})` : d.ecuAwake ? 'no answer yet' : 'waits for the engine'}
       </Text>
     </View>
@@ -605,7 +605,7 @@ const styles = StyleSheet.create({
   toggleRow: { flexDirection: 'row', gap: 16 },
   toggle: { flex: 1, borderWidth: 1, borderRadius: 6, paddingVertical: 18, alignItems: 'center' },
   toggleText: { fontFamily: 'Oxanium', fontSize: 20, fontWeight: '700', letterSpacing: 2 },
-  hint: { fontFamily: 'JetBrains Mono', fontSize: 16, lineHeight: 19 },
+  hint: { fontFamily: 'JetBrains Mono', fontSize: 16, lineHeight: 23 },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   dot: { width: 12, height: 12, borderRadius: 6 },
   statusLabel: { fontFamily: 'JetBrains Mono', fontSize: 18, letterSpacing: 1, width: 150 },

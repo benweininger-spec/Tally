@@ -83,7 +83,7 @@ export function QuickControls({ t, visible }: { t: Theme; visible: boolean }) {
   return (
     <>
       {!sysControlsAvailable && (
-        <Text style={[styles.hint, { color: t.textFaint }]}>
+        <Text allowFontScaling={false} style={[styles.hint, { color: t.textFaint }]}>
           System controls run on the head unit — shown disabled in this preview.
         </Text>
       )}
@@ -123,7 +123,11 @@ export function QuickControls({ t, visible }: { t: Theme; visible: boolean }) {
       <RadioRow t={t} label="BLUETOOTH" on={avail ? s!.bluetoothOn : null} disabled={!avail} onOpen={() => void openBluetoothSettings().catch(() => {})} />
       <RadioRow t={t} label="WI-FI" on={avail ? s!.wifiOn : null} disabled={!avail} onOpen={() => void openWifiSettings().catch(() => {})} />
 
-      <Text style={[styles.rowLabel, { color: t.text, marginTop: 4 }]}>TEXT SIZE</Text>
+      <Text allowFontScaling={false} style={[styles.rowLabel, { color: t.text, marginTop: 4 }]}>ANDROID TEXT SIZE</Text>
+      <Text allowFontScaling={false} style={[styles.hint, { color: t.textFaint }]}>
+        Other Android screens only — the dash is laid out at fixed sizes and ignores this (it used to push
+        things off the cards). Set NORMAL to undo a change.
+      </Text>
       <View style={styles.chips}>
         {TEXT_SIZES.map((o) => {
           const active = avail && Math.abs((s!.fontScale ?? 1) - o.scale) < 0.03;
@@ -150,13 +154,13 @@ export function QuickControls({ t, visible }: { t: Theme; visible: boolean }) {
                 },
               ]}
             >
-              <Text style={[styles.chipText, { color: active ? t.accent : t.textDim }]}>{o.label}</Text>
+              <Text allowFontScaling={false} style={[styles.chipText, { color: active ? t.accent : t.textDim }]}>{o.label}</Text>
             </Press>
           );
         })}
       </View>
 
-      <Text style={[styles.rowLabel, { color: t.text, marginTop: 4 }]}>SCREEN TIMEOUT</Text>
+      <Text allowFontScaling={false} style={[styles.rowLabel, { color: t.text, marginTop: 4 }]}>SCREEN TIMEOUT</Text>
       <View style={styles.chips}>
         {TIMEOUTS.map((o) => {
           const active = avail && s!.screenTimeoutMs === o.ms;
@@ -181,13 +185,13 @@ export function QuickControls({ t, visible }: { t: Theme; visible: boolean }) {
                 },
               ]}
             >
-              <Text style={[styles.chipText, { color: active ? t.accent : t.textDim }]}>{o.label}</Text>
+              <Text allowFontScaling={false} style={[styles.chipText, { color: active ? t.accent : t.textDim }]}>{o.label}</Text>
             </Press>
           );
         })}
       </View>
 
-      {note && <Text style={[styles.hint, { color: t.warn }]}>{note}</Text>}
+      {note && <Text allowFontScaling={false} style={[styles.hint, { color: t.warn }]}>{note}</Text>}
     </>
   );
 }
@@ -196,8 +200,8 @@ function ControlRow({ t, label, value, children }: { t: Theme; label: string; va
   return (
     <View style={{ gap: 4 }}>
       <View style={styles.rowHead}>
-        <Text style={[styles.rowLabel, { color: t.text }]}>{label}</Text>
-        <Text style={[styles.rowValue, { color: t.accent }]}>{value}</Text>
+        <Text allowFontScaling={false} style={[styles.rowLabel, { color: t.text }]}>{label}</Text>
+        <Text allowFontScaling={false} style={[styles.rowValue, { color: t.accent }]}>{value}</Text>
       </View>
       {children}
     </View>
@@ -221,15 +225,15 @@ function RadioRow({
   return (
     <View style={styles.radioRow}>
       <View style={[styles.dot, { backgroundColor: color }]} />
-      <Text style={[styles.rowLabel, { color: t.text, flex: 1 }]}>{label}</Text>
-      <Text style={[styles.radioState, { color }]}>{on == null ? '—' : on ? 'ON' : 'OFF'}</Text>
+      <Text allowFontScaling={false} style={[styles.rowLabel, { color: t.text, flex: 1 }]}>{label}</Text>
+      <Text allowFontScaling={false} style={[styles.radioState, { color }]}>{on == null ? '—' : on ? 'ON' : 'OFF'}</Text>
       <Btn t={t} label="OPEN ↗" onPress={onOpen} disabled={disabled} grow={false} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  hint: { fontFamily: 'JetBrains Mono', fontSize: 16, lineHeight: 19 },
+  hint: { fontFamily: 'JetBrains Mono', fontSize: 16, lineHeight: 23 },
   btnRow: { flexDirection: 'row', gap: 16 },
   rowHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   rowLabel: { fontFamily: 'JetBrains Mono', fontSize: 18, letterSpacing: 2 },

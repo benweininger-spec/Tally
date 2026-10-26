@@ -7,7 +7,7 @@ import type { Theme } from '../theme/themes';
 export function Section({ t, title, children }: { t: Theme; title: string; children: React.ReactNode }) {
   return (
     <View style={[styles.section, { borderColor: t.hairline }]}>
-      <Text style={[styles.sectionTitle, { color: t.textDim }]}>{title}</Text>
+      <Text allowFontScaling={false} style={[styles.sectionTitle, { color: t.textDim }]}>{title}</Text>
       <View style={{ gap: 12 }}>{children}</View>
     </View>
   );
@@ -34,7 +34,7 @@ export function Btn({
       hitSlop={12} // 72 px + slop = a 96 px target
       style={[styles.btn, grow ? { flex: 1 } : { flexShrink: 0 }, { borderColor: t.accent, opacity: disabled ? 0.4 : 1 }]}
     >
-      <Text style={[styles.btnText, { color: t.accent }]}>{label}</Text>
+      <Text allowFontScaling={false} style={[styles.btnText, { color: t.accent }]}>{label}</Text>
     </Press>
   );
 }

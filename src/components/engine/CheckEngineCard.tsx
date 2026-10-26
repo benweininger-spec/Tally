@@ -99,10 +99,10 @@ function ClearButton({ enabled, reason }: { enabled: boolean; reason: string | n
           },
         ]}
       >
-        <Text style={[s.btnText, { color: fg }]}>{label}</Text>
+        <Text allowFontScaling={false} style={[s.btnText, { color: fg }]}>{label}</Text>
       </Pressable>
       {note ? (
-        <Text numberOfLines={3} style={[s.note, { color: phase === 'error' ? t.warn : t.textFaint }]}>
+        <Text allowFontScaling={false} numberOfLines={3} style={[s.note, { color: phase === 'error' ? t.warn : t.textFaint }]}>
           {note}
         </Text>
       ) : null}
@@ -131,7 +131,7 @@ export const CheckEngineCard = React.memo(function CheckEngineCard() {
 
   const head = (
     <View style={s.headRight}>
-      <Text style={[s.count, { color: unknown ? t.absent : count ? t.warn : t.textFaint }]}>
+      <Text allowFontScaling={false} style={[s.count, { color: unknown ? t.absent : count ? t.warn : t.textFaint }]}>
         {unknown ? 'NOT READ' : `${count} CODE${count === 1 ? '' : 'S'}`}
       </Text>
       <MilLamp on={v.connected && v.mil} />
@@ -143,22 +143,22 @@ export const CheckEngineCard = React.memo(function CheckEngineCard() {
       <View style={s.body}>
         <View style={s.list}>
           {!v.connected ? (
-            <Text style={[s.empty, { color: t.absent }]}>— NO DATA · OBD2 NOT CONNECTED</Text>
+            <Text allowFontScaling={false} style={[s.empty, { color: t.absent }]}>— NO DATA · OBD2 NOT CONNECTED</Text>
           ) : codes == null ? (
-            <Text style={[s.empty, { color: t.absent }]}>— READING CODES…</Text>
+            <Text allowFontScaling={false} style={[s.empty, { color: t.absent }]}>— READING CODES…</Text>
           ) : codes.length === 0 ? (
-            <Text style={[s.ok, { color: t.text }]}>NO CODES · ENGINE OK</Text>
+            <Text allowFontScaling={false} style={[s.ok, { color: t.text }]}>NO CODES · ENGINE OK</Text>
           ) : (
             <>
               {codes.slice(0, MAX_SHOWN).map((c) => (
                 <View key={c} style={s.codeRow}>
-                  <Text style={[s.code, { color: t.warn }]}>{c}</Text>
-                  <Text numberOfLines={2} style={[s.desc, { color: t.textDim }]}>
+                  <Text allowFontScaling={false} style={[s.code, { color: t.warn }]}>{c}</Text>
+                  <Text allowFontScaling={false} numberOfLines={2} style={[s.desc, { color: t.textDim }]}>
                     {describeDtc(c)}
                   </Text>
                 </View>
               ))}
-              {codes.length > MAX_SHOWN && <Text style={[s.desc, { color: t.textFaint }]}>+{codes.length - MAX_SHOWN} MORE</Text>}
+              {codes.length > MAX_SHOWN && <Text allowFontScaling={false} style={[s.desc, { color: t.textFaint }]}>+{codes.length - MAX_SHOWN} MORE</Text>}
             </>
           )}
         </View>

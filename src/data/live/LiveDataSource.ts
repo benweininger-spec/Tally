@@ -36,9 +36,10 @@ import {
   type ZeroSixtyState,
 } from '../../lib/derive';
 import { PIDS, TACOMA_TANK_L } from '../../lib/elm327';
-import { loadCalibration, loadObdMac, saveCalibration, saveObdMac } from '../settings';
-import { OBD_RETRY_SLOW_MS, obdRetryDelayMs, pickObdAdapter } from '../../lib/obdLink';
+import { loadCalibration, loadObdMac, loadObdProtocol, saveCalibration, saveObdMac, saveObdProtocol } from '../settings';
+import { OBD_RETRY_SLOW_MS, obdRetryDelayMs, pickObdAdapter, protocolHint } from '../../lib/obdLink';
 import { emaStep } from '../../lib/engineGlance';
+import { addFuelSample, createFuelFilter, filteredLitres, isLevel } from '../../lib/fuelFilter';
 import { LocationProvider } from './locationProvider';
 import { SensorProvider } from './sensorProvider';
 import { MediaBridgeProvider, type RadioPreset } from './mediaBridge';
@@ -100,6 +101,8 @@ export interface LiveControls {
   radioSeek(dir: 1 | -1): void;
   /** play/pause the FM tuner (play = switch the unit's audio to radio) */
   radioToggle(): void;
+  /** one frequency step (0.2 MHz in the US) up / down — browse without favourites */
+  radioTune(dir: 1 | -1): void;
   /** the tuner's favourites (its session queue) with station logos */
   getRadioPresets(): Promise<RadioPreset[]>;
   radioPlayPreset(id: number): void;
@@ -142,6 +145,9 @@ export class LiveDataSource implements DataSource, LiveControls {
   private obdRetryAt: number | null = null;
   private obdLastError: string | null = null;
   private prevAcc: boolean | null = null;
+  /** launch / ignition-on time: retries stay fast for OBD_BOOT_WINDOW_MS after it */
+  private obdKickAt = 0;
+  private obdProto: string | null = null;
   private appStateSub: { remove: () => void } | null = null;
 
   private histLongG = new Array(HISTORY_LEN).fill(0);
@@ -154,6 +160,9 @@ export class LiveDataSource implements DataSource, LiveControls {
   private prevDistanceMi = 0;
   private lastFuelAt = 0; // wall time of the last fuel-integration step
   private prevGpsFix = false;
+  // gauge-cluster fuel readings slosh on grades: 5-min, level-only interquartile mean
+  private fuelFilter = createFuelFilter();
+  private lastFuelReadAt: number | null = null;
   private mpgSmooth: number | null = null; // ~2 s EMA of instant mpg (raw swings 5↔99)
   private mpgSmoothAt = 0;
   private snap: DashboardData = this.buildSnapshot();
@@ -179,12 +188,14 @@ export class LiveDataSource implements DataSource, LiveControls {
     // OBD: connect to the remembered adapter on our own, and keep trying until the truck
     // (and the dongle) wake up. A short delay lets the BT stack settle after boot.
     this.started = true;
-    loadObdMac()
-      .then((m) => {
+    this.obdKickAt = Date.now();
+    Promise.all([loadObdMac(), loadObdProtocol()])
+      .then(([m, p]) => {
         this.obdMac = m;
+        this.obdProto = p;
       })
       .catch(() => undefined)
-      .finally(() => this.scheduleObd(1500));
+      .finally(() => this.scheduleObd(800));
     // keep JS timers running while another app is in front (CarPlay, the stock launcher
     // popping up on Bluetooth connect, a permission screen) — else OBD + MPG logging freeze
     void startKeepAlive();
@@ -241,6 +252,13 @@ export class LiveDataSource implements DataSource, LiveControls {
     this.frame++;
     const loc = this.location.getSnapshot();
     const sens = this.sensors.getSnapshot();
+
+    // remember the bus protocol the ELM settled on → next connect skips the search
+    const proto = protocolHint(this.obd?.protocolDetected);
+    if (proto && proto !== this.obdProto) {
+      this.obdProto = proto;
+      void saveObdProtocol(proto);
+    }
 
     // ignition on (Microntek ACC broadcast) → the dongle is waking: retry right away
     const acc = this.mtc.getSnapshot().acc;
@@ -424,10 +442,22 @@ export class LiveDataSource implements DataSource, LiveControls {
         intakeTempF: obdSlow(obd?.read(PIDS.INTAKE_TEMP) ?? { value: null, at: null }, (c) => round(celsiusToFahrenheit(c))),
         oilTempF: obdSlow(obd?.read(PIDS.OIL_TEMP) ?? { value: null, at: null }, (c) => round(celsiusToFahrenheit(c))),
         ambientTempF: obdSlow(obd?.read(PIDS.AMBIENT_TEMP) ?? { value: null, at: null }, (c) => round(celsiusToFahrenheit(c))),
-        // PID 2F isn't supported here; the EXPERIMENTAL meter probe (litres) fills it if it answers
+        // PID 2F isn't supported here; the gauge-cluster probe (litres) fills it — smoothed:
+        // only level readings, last 5 min, interquartile mean (src/lib/fuelFilter.ts)
         fuelLevelPct: (() => {
-          const meter = obdUp ? this.fresh(obd!.fuelLevelL, now, (l) => round((l / TACOMA_TANK_L) * 100), 120_000, 360_000) : absent<number>();
-          return meter.status !== 'absent' ? meter : obdSlow(obd?.read(PIDS.FUEL_LEVEL) ?? { value: null, at: null }, round);
+          const r = obd?.fuelLevelL;
+          if (obdUp && r && r.value != null && r.at != null && r.at !== this.lastFuelReadAt) {
+            this.lastFuelReadAt = r.at;
+            addFuelSample(this.fuelFilter, {
+              at: r.at,
+              litres: r.value,
+              level: isLevel(sens.online ? sens.pitchDeg : null, sens.online ? sens.rollDeg : null, sens.online ? sens.longG : null),
+              stopped: (loc.speedMph ?? 0) < 1,
+            });
+          }
+          const l = obdUp ? filteredLitres(this.fuelFilter, now) : null;
+          if (l != null) return live(round((l / TACOMA_TANK_L) * 1000) / 10, r?.at ?? now);
+          return obdSlow(obd?.read(PIDS.FUEL_LEVEL) ?? { value: null, at: null }, round);
         })(),
         instantMpg: obdUp && instMpg != null ? live(round1(instMpg), now) : absent<number>(),
         avgMpg: obdUp && avg != null ? live(round1(avg), now) : absent<number>(),
@@ -549,6 +579,7 @@ export class LiveDataSource implements DataSource, LiveControls {
   private async dialObd(mac: string | undefined, interactive: boolean): Promise<void> {
     const transport = new ClassicSppTransport(mac, { interactive });
     const manager = new ObdManager();
+    manager.protocolHintIn = this.obdProto;
     manager.onDrop(() => this.onObdDropped(manager));
     this.obd = manager;
     try {
@@ -616,7 +647,7 @@ export class LiveDataSource implements DataSource, LiveControls {
     if (this.obdFailingSince == null) this.obdFailingSince = now;
     this.obdLastError = e instanceof Error ? e.message : String(e);
     this.obdWait = wait;
-    this.scheduleObd(Math.max(minDelayMs, obdRetryDelayMs(this.obdFailures, now - this.obdFailingSince)));
+    this.scheduleObd(Math.max(minDelayMs, obdRetryDelayMs(this.obdFailures, now - this.obdFailingSince, now - this.obdKickAt)));
   }
 
   private onObdDropped(manager: ObdManager) {
@@ -633,7 +664,10 @@ export class LiveDataSource implements DataSource, LiveControls {
   /** Ignition-on / foreground: reset the backoff and try now (if not already linked). */
   private kickObd(ignition: boolean) {
     if (!this.started) return;
-    if (ignition) this.obdAuto = true; // a new drive re-arms a manual DISCONNECT
+    if (ignition) {
+      this.obdAuto = true; // a new drive re-arms a manual DISCONNECT
+      this.obdKickAt = Date.now(); // fast retries while the dongle wakes
+    }
     if (!this.obdAuto || this.obd?.connected || this.obdAttempt) return;
     this.obdFailures = 0;
     this.obdFailingSince = null;
@@ -687,8 +721,29 @@ export class LiveDataSource implements DataSource, LiveControls {
   getRadio(): Promise<NowPlaying | null> {
     return this.media.radio();
   }
+  /**
+   * Seek to the next station. Straight to the MCU (ctl_radio_seek) — the stock launcher's
+   * session "next" means next FAVOURITE once any exist (it got stuck on one, 2026-10-26).
+   * Falls back to the session on a build / unit without the command.
+   */
   radioSeek(dir: 1 | -1): void {
-    this.media.radioSeek(dir);
+    if (!this.mtc.radioCommand(dir > 0 ? 'seek_up' : 'seek_down')) this.media.radioSeek(dir);
+    this.mtc.radioRequestState();
+  }
+  radioTune(dir: 1 | -1): void {
+    if (this.mtc.radioCommand(dir > 0 ? 'tune_up' : 'tune_down')) {
+      this.mtc.radioRequestState();
+      return;
+    }
+    // fallback: tune to an exact frequency via the radio service's broadcast
+    const r = this.mtc.getSnapshot().radio;
+    if (r) {
+      let hz = r.freqHz + dir * r.stepHz;
+      if (hz > r.maxHz) hz = r.minHz;
+      if (hz < r.minHz) hz = r.maxHz;
+      this.mtc.radioSetFreq(hz);
+      this.mtc.radioRequestState();
+    }
   }
   radioToggle(): void {
     this.media.radioToggle();

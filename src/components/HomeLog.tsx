@@ -56,15 +56,15 @@ export const FuelTankCard = React.memo(function FuelTankCard() {
   return (
     <Press onPress={() => openLog('fuel')} style={[s.card, { borderColor: low ? t.warn : t.panelBorder, backgroundColor: t.panel }]}>
       <View style={s.head}>
-        <Text style={[s.label, { color: t.textFaint }]}>FUEL TANK</Text>
+        <Text allowFontScaling={false} style={[s.label, { color: t.textFaint }]}>FUEL TANK</Text>
         <Press onPress={openFill} hitSlop={10} style={[s.fillBtn, { borderColor: t.accent }]}>
-          <Text style={[s.fillText, { color: t.accent }]}>FILLED UP</Text>
+          <Text allowFontScaling={false} style={[s.fillText, { color: t.accent }]}>FILLED UP</Text>
         </Press>
       </View>
-      <Text style={[s.big, { color }]}>
+      <Text allowFontScaling={false} style={[s.big, { color }]}>
         {gal == null ? '—' : `${meter != null ? '' : '≈ '}${gal.toFixed(1)}`}
-        {gal != null && <Text style={[s.unit, { color: t.textDim }]}> gal</Text>}
-        {range != null && <Text style={[s.unit, { color: t.textDim }]}>{`   ≈ ${Math.round(range)} mi`}</Text>}
+        {gal != null && <Text allowFontScaling={false} style={[s.unit, { color: t.textDim }]}> gal</Text>}
+        {range != null && <Text allowFontScaling={false} style={[s.unit, { color: t.textDim }]}>{`   ≈ ${Math.round(range)} mi`}</Text>}
       </Text>
       <View style={[s.track, { backgroundColor: t.hairline }]}>
         {pct != null && <View style={[s.fill, { width: `${Math.max(2, pct)}%`, backgroundColor: low ? t.warn : t.accent }]} />}
@@ -72,7 +72,7 @@ export const FuelTankCard = React.memo(function FuelTankCard() {
           <View key={q} style={[s.q, { left: `${q}%`, backgroundColor: t.bg }]} />
         ))}
       </View>
-      <Text style={[s.foot, { color: low ? t.warn : t.textFaint }]}>
+      <Text allowFontScaling={false} style={[s.foot, { color: low ? t.warn : t.textFaint }]}>
         {spend.month != null
           ? `${low ? 'LOW · ' : ''}${meter != null ? 'GAUGE' : 'EST'} · $${spend.month} THIS MO${spend.perMile != null ? ` · $${spend.perMile.toFixed(2)}/MI` : ''}`
           : meter != null
@@ -97,8 +97,8 @@ export const ServiceNudge = React.memo(function ServiceNudge() {
   const c = state === 'due' ? t.warn : t.accent;
   return (
     <Press radius={8} hitSlop={12} onPress={() => openLog('service', id)} style={[s.nudge, { borderColor: c, backgroundColor: t.bg }]}>
-      <Text style={[s.nudgeTitle, { color: c }]}>{label.toUpperCase()}</Text>
-      <Text style={[s.nudgeSub, { color: t.textDim }]}>{when.toUpperCase()} · TAP TO LOG</Text>
+      <Text allowFontScaling={false} style={[s.nudgeTitle, { color: c }]}>{label.toUpperCase()}</Text>
+      <Text allowFontScaling={false} style={[s.nudgeSub, { color: t.textDim }]}>{when.toUpperCase()} · TAP TO LOG</Text>
     </Press>
   );
 });
@@ -161,8 +161,8 @@ export const TripSummaryLayer = React.memo(function TripSummaryLayer() {
   if (phase === 'prompt') {
     return (
       <Press radius={10} hitSlop={12} onPress={() => setPhase('card')} style={[s.prompt, { borderColor: t.accent, backgroundColor: t.bg }]}>
-        <Text style={[s.promptTitle, { color: t.accent }]}>TRIP SUMMARY ›</Text>
-        <Text style={[s.promptSub, { color: t.textDim }]}>
+        <Text allowFontScaling={false} style={[s.promptTitle, { color: t.accent }]}>TRIP SUMMARY ›</Text>
+        <Text allowFontScaling={false} style={[s.promptSub, { color: t.textDim }]}>
           {trip.miles} MI · {trip.mins} MIN{trip.mpg ? ` · ${trip.mpg} MPG` : ''}
         </Text>
       </Press>
@@ -172,15 +172,15 @@ export const TripSummaryLayer = React.memo(function TripSummaryLayer() {
   const cost = money.price != null && gal > 0 ? `$${(gal * money.price).toFixed(2)}` : '';
   const stat = (v: string, label: string, color: string) => (
     <View style={s.stat}>
-      <Text style={[s.statVal, { color: v ? color : t.absent }]}>{v || '—'}</Text>
-      <Text style={[s.statLabel, { color: t.textFaint }]}>{label}</Text>
+      <Text allowFontScaling={false} style={[s.statVal, { color: v ? color : t.absent }]}>{v || '—'}</Text>
+      <Text allowFontScaling={false} style={[s.statLabel, { color: t.textFaint }]}>{label}</Text>
     </View>
   );
   return (
     <Press onPress={() => setPhase('done')} style={[s.debrief, { borderColor: t.accent, backgroundColor: t.bg }]}>
       <View style={s.head}>
-        <Text style={[s.label, { color: t.accent }]}>TRIP SUMMARY</Text>
-        <Text style={[s.close, { color: t.textFaint }]}>TAP TO CLOSE ✕</Text>
+        <Text allowFontScaling={false} style={[s.label, { color: t.accent }]}>TRIP SUMMARY</Text>
+        <Text allowFontScaling={false} style={[s.close, { color: t.textFaint }]}>TAP TO CLOSE ✕</Text>
       </View>
       <View style={s.stats}>
         {stat(trip.miles, 'MILES', t.text)}
@@ -188,7 +188,7 @@ export const TripSummaryLayer = React.memo(function TripSummaryLayer() {
         {stat(trip.mpg, 'AVG MPG', economyColor(t, trip.mpgRaw))}
         {stat(cost, 'FUEL COST', t.text)}
       </View>
-      <Text style={[s.line, { color: t.textDim }]}>
+      <Text allowFontScaling={false} style={[s.line, { color: t.textDim }]}>
         {[trip.eco && `ECO ${trip.eco}%`, trip.idle && `IDLE ${trip.idle} MIN`, trip.top && `TOP ${trip.top} MPH`, gal > 0.01 && `${gal.toFixed(2)} GAL`]
           .filter(Boolean)
           .join('   ·   ')}

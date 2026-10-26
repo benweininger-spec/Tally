@@ -34,11 +34,11 @@ export const CompassCard = React.memo(function CompassCard({ compact = false }: 
         <Circle cx={60} cy={60} r={3} fill={needle} />
       </Svg>
       <View style={{ flexShrink: 1 }}>
-        <Text style={[styles.label, { color: t.textFaint }]}>HEADING</Text>
-        <Text style={[styles.value, compact && { fontSize: 46, lineHeight: 50 }, { color: dim ? t.textDim : t.text }]}>
-          {hdg}°<Text style={{ fontSize: compact ? 26 : 30, color: t.textDim }}> {cardinal(hdg)}</Text>
+        <Text allowFontScaling={false} style={[styles.label, { color: t.textFaint }]}>HEADING</Text>
+        <Text allowFontScaling={false} style={[styles.value, compact && { fontSize: 46, lineHeight: 50 }, { color: dim ? t.textDim : t.text }]}>
+          {hdg}°<Text allowFontScaling={false} style={{ fontSize: compact ? 26 : 30, color: t.textDim }}> {cardinal(hdg)}</Text>
         </Text>
-        <Text style={[styles.sub, { color: t.absent }]} numberOfLines={1}>
+        <Text allowFontScaling={false} style={[styles.sub, { color: t.absent }]} numberOfLines={1}>
           {compact ? (dim ? 'HOLD · TAP TO ROUTE' : 'TAP TO ROUTE') : dim ? 'HEADING HOLD · TAP TO ROUTE' : 'NAV IDLE · TAP TO ROUTE'}
         </Text>
       </View>

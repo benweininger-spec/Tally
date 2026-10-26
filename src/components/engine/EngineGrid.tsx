@@ -60,16 +60,16 @@ const Volts = React.memo(function Volts() {
   const v = useTelemetry((d) => ({ ecu: num(d.obd.ecuVolts, 0.1), unit: num(d.system.unitVoltage, 0.1) }), shallowEqual);
   const cell = (label: string, x: number | null) => (
     <View style={{ flex: 1 }}>
-      <Text style={[ps.caption, { color: x == null ? t.absent : t.textFaint }]}>{label}</Text>
-      <Text style={[s.volt, { color: x == null ? t.absent : t.text }]}>
+      <Text allowFontScaling={false} style={[ps.caption, { color: x == null ? t.absent : t.textFaint }]}>{label}</Text>
+      <Text allowFontScaling={false} style={[s.volt, { color: x == null ? t.absent : t.text }]}>
         {x == null ? '—' : x.toFixed(1)}
-        {x != null && <Text style={[s.voltUnit, { color: t.textDim }]}> V</Text>}
+        {x != null && <Text allowFontScaling={false} style={[s.voltUnit, { color: t.textDim }]}> V</Text>}
       </Text>
     </View>
   );
   return (
     <View style={[ps.card, ps.tile, { borderColor: t.panelBorder, backgroundColor: t.panel }]}>
-      <Text style={[ps.label, { color: v.ecu == null && v.unit == null ? t.absent : t.textFaint }]}>VOLTS</Text>
+      <Text allowFontScaling={false} style={[ps.label, { color: v.ecu == null && v.unit == null ? t.absent : t.textFaint }]}>VOLTS</Text>
       <View style={{ flexDirection: 'row', gap: 12 }}>
         {cell('ECU · ALT', v.ecu)}
         {cell('UNIT · BATT', v.unit)}

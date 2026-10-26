@@ -95,14 +95,14 @@ function RingLayout() {
         {progress && <Path d={progress} stroke={t.accent} strokeWidth={3} fill="none" strokeLinecap="round" />}
       </Svg>
       <View style={styles.center} pointerEvents="none">
-        <Text style={[styles.speed, { color: live ? t.accent : t.absent }]}>{live ? speed : '—'}</Text>
-        <Text style={[styles.unit, { color: t.textFaint }]}>MPH</Text>
+        <Text allowFontScaling={false} style={[styles.speed, { color: live ? t.accent : t.absent }]}>{live ? speed : '—'}</Text>
+        <Text allowFontScaling={false} style={[styles.unit, { color: t.textFaint }]}>MPH</Text>
       </View>
       {/* clock sits in the open bottom of the ring */}
       <View style={styles.clockWrap} pointerEvents="none">
-        <Text style={[styles.clock, { color: t.textDim }]}>
+        <Text allowFontScaling={false} style={[styles.clock, { color: t.textDim }]}>
           {time}
-          <Text style={[styles.ampm, { color: t.textFaint }]}> {ampm}</Text>
+          <Text allowFontScaling={false} style={[styles.ampm, { color: t.textFaint }]}> {ampm}</Text>
         </Text>
       </View>
     </>
@@ -123,14 +123,14 @@ function HeroLayout({ style }: { style: 'record' | 'scope' }) {
         {style === 'record' ? <SpeedRecord size={HERO} /> : <GScope size={HERO} />}
       </View>
       <View style={styles.speedCol} pointerEvents="none">
-        <Text style={[styles.heroSpeed, { color: live ? t.accent : t.absent }]}>{live ? speed : '—'}</Text>
-        <Text style={[styles.unit, { color: t.textFaint }]}>MPH</Text>
+        <Text allowFontScaling={false} style={[styles.heroSpeed, { color: live ? t.accent : t.absent }]}>{live ? speed : '—'}</Text>
+        <Text allowFontScaling={false} style={[styles.unit, { color: t.textFaint }]}>MPH</Text>
       </View>
       {style === 'scope' && (
         <View style={styles.clockCol} pointerEvents="none">
-          <Text style={[styles.clock, { color: t.textDim }]}>
+          <Text allowFontScaling={false} style={[styles.clock, { color: t.textDim }]}>
             {time}
-            <Text style={[styles.ampm, { color: t.textFaint }]}> {ampm}</Text>
+            <Text allowFontScaling={false} style={[styles.ampm, { color: t.textFaint }]}> {ampm}</Text>
           </Text>
         </View>
       )}
@@ -156,7 +156,7 @@ function StyleSwitch({ value, onChange }: { value: NightStyle; onChange: (s: Nig
             onPress={() => onChange(s.id)}
             style={[styles.seg, { borderColor: active ? t.accent : t.panelBorder, backgroundColor: active ? t.panel : 'transparent' }]}
           >
-            <Text style={[styles.segText, { color: active ? t.accent : t.textFaint }]}>{s.label}</Text>
+            <Text allowFontScaling={false} style={[styles.segText, { color: active ? t.accent : t.textFaint }]}>{s.label}</Text>
           </Press>
         );
       })}

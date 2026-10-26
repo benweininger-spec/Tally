@@ -62,7 +62,7 @@ const DEAD_AFTER_SILENT_CMDS = 8;
 const DTC_REREAD_MS = 60_000; // re-read codes at most once a minute while the MIL count > 0
 const PROBE_EVERY = 25; // ticks between experimental ATF-probe attempts (never blocks FAST)
 const TRANS_EVERY = 40; // ticks between ATF polls once a probe has answered
-const FUEL_EVERY = 120; // fuel level moves slowly: poll the meter rarely once it answers
+const FUEL_EVERY = 60; // ~every 8 s once it answers: enough samples for the 5-min slosh filter
 
 /** A reply matcher: true when `frame` answers the in-flight command. */
 type Match = (frame: string) => boolean;
@@ -170,6 +170,9 @@ export class ObdManager {
   }
 
   /** Connect over an already-constructed transport, init, and begin polling. */
+  /** "6" etc. — the last session's bus protocol, tried first (ATSPA6) instead of ATSP0 */
+  protocolHintIn: string | null = null;
+
   async connect(transport: ObdTransport): Promise<void> {
     this.transport = transport;
     this.unsubFrame = transport.onFrame((frame) => this.onFrame(frame));
@@ -297,8 +300,10 @@ export class ObdManager {
 
   private async initialize() {
     for (let i = 0; i < AT_INIT.length; i++) {
+      // known protocol → "try it first, auto if it fails" skips the multi-second search
+      const cmd = AT_INIT[i] === 'ATSP0' && this.protocolHintIn ? `ATSPA${this.protocolHintIn}` : AT_INIT[i];
       try {
-        const raw = await this.send(AT_INIT[i], null, this.initTimeoutMs);
+        const raw = await this.send(cmd, null, this.initTimeoutMs);
         if (AT_INIT[i] === 'ATZ') {
           const banner = raw.split(/[\r\n]+/).map((l) => l.trim()).find((l) => /ELM|V\d/i.test(l));
           if (banner) this.adapterBanner = banner;
@@ -573,6 +578,10 @@ export class ObdManager {
   /** EXPERIMENTAL Toyota ATF temperature (°C); absent until a probe answers */
   get transTempC(): Reading {
     return this.transC;
+  }
+  /** ATDPN result once the ECU answered (e.g. "A6"), else null */
+  get protocolDetected(): string | null {
+    return this.protocol;
   }
   /** EXPERIMENTAL tank level from the combination meter (litres); absent unless it answered */
   get fuelLevelL(): Reading {

@@ -47,7 +47,7 @@ export const GyroCard = React.memo(function GyroCard() {
 
   return (
     <View style={[styles.card, { borderColor: t.panelBorder, backgroundColor: t.panel }]}>
-      <Text style={[styles.title, { color: t.textFaint }]}>ATTITUDE</Text>
+      <Text allowFontScaling={false} style={[styles.title, { color: t.textFaint }]}>ATTITUDE</Text>
 
       <AttitudeDisc size={SIZE} pitch={pitch} roll={roll} live={live} t={t} />
 
@@ -58,7 +58,7 @@ export const GyroCard = React.memo(function GyroCard() {
       </View>
 
       {/* lateral-g slip bubble */}
-      <Text style={[styles.gLabel, { color: t.textFaint }]}>LATERAL G</Text>
+      <Text allowFontScaling={false} style={[styles.gLabel, { color: t.textFaint }]}>LATERAL G</Text>
       <SlipBall width={SIZE} latG={latG} accent={accent} t={t} />
     </View>
   );
@@ -159,8 +159,8 @@ const BANK_TICKS = [-60, -45, -30, -15, 0, 15, 30, 45, 60].map((d) => {
 function Readout({ t, label, value }: { t: Theme; label: string; value: string }) {
   return (
     <View style={styles.readout}>
-      <Text style={[styles.rLabel, { color: t.textFaint }]}>{label}</Text>
-      <Text style={[styles.rValue, { color: t.text }]}>{value}</Text>
+      <Text allowFontScaling={false} style={[styles.rLabel, { color: t.textFaint }]}>{label}</Text>
+      <Text allowFontScaling={false} style={[styles.rValue, { color: t.text }]}>{value}</Text>
     </View>
   );
 }

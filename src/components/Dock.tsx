@@ -47,8 +47,8 @@ export const Dock = React.memo(function Dock() {
         onPress={openCarPlay}
         style={[styles.carplay, { borderColor: cpErr ? t.warn : t.accent, backgroundColor: t.panel }]}
       >
-        <Text style={[styles.cpTitle, { color: cpErr ? t.warn : t.accent }]}>CarPlay</Text>
-        <Text style={[styles.cpSub, { color: t.textDim }]}>
+        <Text allowFontScaling={false} style={[styles.cpTitle, { color: cpErr ? t.warn : t.accent }]}>CarPlay</Text>
+        <Text allowFontScaling={false} style={[styles.cpSub, { color: t.textDim }]}>
           {cpErr ? 'APP NOT FOUND' : 'WIRELESS · LAUNCH'}
         </Text>
       </Press>
@@ -64,20 +64,20 @@ export const Dock = React.memo(function Dock() {
             }}
             style={[styles.tile, { borderColor: err ? t.warn : t.panelBorder }]}
           >
-            <Text numberOfLines={1} style={[styles.tileText, { color: err ? t.warn : empty ? t.absent : t.textDim }]}>
+            <Text allowFontScaling={false} numberOfLines={1} style={[styles.tileText, { color: err ? t.warn : empty ? t.absent : t.textDim }]}>
               {tile.label || '—'}
             </Text>
-            {err && <Text style={[styles.tileSub, { color: t.warn }]}>NOT INSTALLED</Text>}
+            {err && <Text allowFontScaling={false} style={[styles.tileSub, { color: t.warn }]}>NOT INSTALLED</Text>}
           </Press>
         );
       })}
 
       <Press onPress={() => setDrawerOpen(true)} style={[styles.tile, { borderColor: t.panelBorder }]}>
-        <Text style={[styles.tileText, { color: t.accentSoft }]}>APPS</Text>
+        <Text allowFontScaling={false} style={[styles.tileText, { color: t.accentSoft }]}>APPS</Text>
       </Press>
 
       <Press onPress={openSettings} style={[styles.tile, { borderColor: t.panelBorder }]}>
-        <Text style={[styles.tileText, { color: t.textDim }]}>SET</Text>
+        <Text allowFontScaling={false} style={[styles.tileText, { color: t.textDim }]}>SET</Text>
       </Press>
     </View>
   );

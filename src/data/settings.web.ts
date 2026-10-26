@@ -52,6 +52,14 @@ export async function saveCalibration(cal: Calibration): Promise<void> {
   ls()?.setItem(KEY_CAL, JSON.stringify(cal));
 }
 
+const KEY_OBD_PROTO = 'tacoma-dash:obdProtocol';
+export async function loadObdProtocol(): Promise<string | null> {
+  return ls()?.getItem(KEY_OBD_PROTO) ?? null;
+}
+export async function saveObdProtocol(p: string): Promise<void> {
+  ls()?.setItem(KEY_OBD_PROTO, p);
+}
+
 export async function loadObdMac(): Promise<string | null> {
   return ls()?.getItem(KEY_OBD_MAC) ?? null;
 }

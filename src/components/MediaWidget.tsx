@@ -37,7 +37,7 @@ export const MediaWidget = React.memo(function MediaWidget({ presets = true }: {
               onPress={() => setSource(s)}
               style={[styles.srcTab, { borderColor: active ? t.accent : t.panelBorder, backgroundColor: active ? t.panel : 'transparent' }]}
             >
-              <Text style={[styles.srcText, { color: active ? t.accent : t.textDim }]}>
+              <Text allowFontScaling={false} style={[styles.srcText, { color: active ? t.accent : t.textDim }]}>
                 {s === 'bt' ? 'BLUETOOTH' : 'RADIO'}
               </Text>
             </Press>
@@ -60,16 +60,16 @@ export const MediaWidget = React.memo(function MediaWidget({ presets = true }: {
 function BluetoothNowPlaying({ np, t, live }: { np: NpView; t: ReturnType<typeof useTheme>; live: LiveControls | null }) {
   return (
     <>
-      <Text style={[styles.label, { color: t.textFaint }]}>
+      <Text allowFontScaling={false} style={[styles.label, { color: t.textFaint }]}>
         {np ? `NOW PLAYING · ${np.source}` : 'NOW PLAYING · NO SOURCE'}
       </Text>
       <View style={styles.row}>
         <Art uri={np?.artUri ?? null} t={t} />
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text numberOfLines={1} style={[styles.title, { color: t.text }]}>
+          <Text allowFontScaling={false} numberOfLines={1} style={[styles.title, { color: t.text }]}>
             {np ? np.title : 'Nothing playing'}
           </Text>
-          <Text numberOfLines={1} style={[styles.artist, { color: t.textDim }]}>
+          <Text allowFontScaling={false} numberOfLines={1} style={[styles.artist, { color: t.textDim }]}>
             {np ? np.artist : 'Connect Bluetooth'}
           </Text>
         </View>
@@ -90,7 +90,7 @@ function Art({ uri, t }: { uri: string | null; t: ReturnType<typeof useTheme> })
     <Image source={{ uri }} style={[styles.art, { borderColor: t.panelBorder }]} resizeMode="cover" />
   ) : (
     <View style={[styles.art, { borderColor: t.panelBorder }]}>
-      <Text style={[styles.artText, { color: t.textFaint }]}>ART</Text>
+      <Text allowFontScaling={false} style={[styles.artText, { color: t.textFaint }]}>ART</Text>
     </View>
   );
 }
@@ -161,28 +161,31 @@ function LiveRadio({
   return (
     <>
       <View style={styles.liveHead}>
-        <Text style={[styles.label, { color: t.textFaint, marginBottom: 0 }]}>
+        <Text allowFontScaling={false} style={[styles.label, { color: t.textFaint, marginBottom: 0 }]}>
           {r ? `TUNER · ${band} · ${r.isPlaying ? 'ON AIR' : 'PAUSED'}` : 'TUNER · NOT PLAYING'}
         </Text>
         <Pressable onPress={launch} hitSlop={10}>
-          <Text style={[styles.launchLink, { color: t.textFaint, marginTop: 0 }]}>RADIO APP ↗</Text>
+          <Text allowFontScaling={false} style={[styles.launchLink, { color: t.textFaint, marginTop: 0 }]}>RADIO APP ↗</Text>
         </Pressable>
       </View>
       <View style={[styles.row, { marginTop: 14 }]}>
         <Art uri={r?.artUri ?? null} t={t} />
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={[styles.freq, { color: r ? t.accent : t.absent }]}>
+          <Text allowFontScaling={false} style={[styles.freq, { color: r ? t.accent : t.absent }]}>
             {r ? r.title : '— · —'}
-            <Text style={{ fontSize: 22, color: t.textDim }}> {band === 'AM' ? 'kHz' : 'MHz'}</Text>
+            <Text allowFontScaling={false} style={{ fontSize: 22, color: t.textDim }}> {band === 'AM' ? 'kHz' : 'MHz'}</Text>
           </Text>
-          <Text numberOfLines={2} style={[styles.station, { color: r ? t.text : t.textFaint }]}>
+          <Text allowFontScaling={false} numberOfLines={2} style={[styles.station, { color: r ? t.text : t.textFaint }]}>
             {saved === 'ok' ? '★ SAVED TO FAVOURITES' : saved === 'no' ? 'COULD NOT SAVE' : r ? r.artist || 'NO RDS TEXT' : 'Start the radio on the unit'}
           </Text>
         </View>
       </View>
       <View style={styles.transport}>
+        {/* SEEK = next station on air (MCU); − / + = one 0.2 MHz step — browse without favourites */}
         <Btn label="SEEK ‹" theme={t} onPress={() => { live.radioSeek(-1); soon(); }} />
+        <Btn label="−" theme={t} onPress={() => { live.radioTune(-1); soon(); }} />
         <Btn label={r?.isPlaying ? '❚❚' : '▶ FM'} theme={t} primary onPress={toggle} />
+        <Btn label="+" theme={t} onPress={() => { live.radioTune(1); soon(); }} />
         <Btn label="› SEEK" theme={t} onPress={() => { live.radioSeek(1); soon(); }} />
         <Btn label="☆" theme={t} onPress={save} />
       </View>
@@ -200,11 +203,11 @@ function LiveRadio({
               {p.art ? (
                 <Image source={{ uri: p.art }} style={styles.favArt} resizeMode="contain" />
               ) : (
-                <Text style={[styles.favFreq, { color: p.active ? t.accent : t.text }]} numberOfLines={1}>
+                <Text allowFontScaling={false} style={[styles.favFreq, { color: p.active ? t.accent : t.text }]} numberOfLines={1}>
                   {p.title}
                 </Text>
               )}
-              <Text numberOfLines={1} style={[styles.favName, { color: p.active ? t.accent : t.textDim }]}>
+              <Text allowFontScaling={false} numberOfLines={1} style={[styles.favName, { color: p.active ? t.accent : t.textDim }]}>
                 {p.art ? p.title : p.subtitle || ' '}
               </Text>
             </Press>
@@ -237,7 +240,7 @@ function RadioTuner({ state, controls, t }: { state: RadioState; controls: Radio
                 disabled={!live}
                 style={[styles.bandTab, { borderColor: active ? t.accent : t.panelBorder }]}
               >
-                <Text style={[styles.bandText, { color: active ? t.accent : t.textDim }]}>{b}</Text>
+                <Text allowFontScaling={false} style={[styles.bandText, { color: active ? t.accent : t.textDim }]}>{b}</Text>
               </Press>
             );
           })}
@@ -254,11 +257,11 @@ function RadioTuner({ state, controls, t }: { state: RadioState; controls: Radio
 
       {/* frequency + station */}
       <View style={styles.freqRow}>
-        <Text style={[styles.freq, { color: accent }]}>
+        <Text allowFontScaling={false} style={[styles.freq, { color: accent }]}>
           {live ? fmtFreq(state.frequencyKhz, state.band) : '— · —'}
-          <Text style={{ fontSize: 22, color: t.textDim }}> {state.band === 'FM' ? 'MHz' : 'kHz'}</Text>
+          <Text allowFontScaling={false} style={{ fontSize: 22, color: t.textDim }}> {state.band === 'FM' ? 'MHz' : 'kHz'}</Text>
         </Text>
-        <Text numberOfLines={1} style={[styles.station, { color: live ? t.text : t.textFaint }]}>
+        <Text allowFontScaling={false} numberOfLines={1} style={[styles.station, { color: live ? t.text : t.textFaint }]}>
           {live ? state.stationName : 'TUNER NOT AVAILABLE'}
         </Text>
       </View>
@@ -278,22 +281,22 @@ function RadioTuner({ state, controls, t }: { state: RadioState; controls: Radio
                 onPress={() => controls.recallPreset(khz)}
                 style={[styles.preset, { borderColor: state.frequencyKhz === khz ? t.accent : t.hairline }]}
               >
-                <Text style={[styles.presetText, { color: state.frequencyKhz === khz ? t.accent : t.textDim }]}>
+                <Text allowFontScaling={false} style={[styles.presetText, { color: state.frequencyKhz === khz ? t.accent : t.textDim }]}>
                   {fmtFreq(khz, state.band)}
                 </Text>
               </Press>
             ))}
           </View>
           <Press onPress={controls.launchFactory} hitSlop={6}>
-            <Text style={[styles.launchLink, { color: t.textFaint }]}>OPEN FACTORY RADIO APP ↗</Text>
+            <Text allowFontScaling={false} style={[styles.launchLink, { color: t.textFaint }]}>OPEN FACTORY RADIO APP ↗</Text>
           </Press>
         </>
       ) : (
         <>
           <Press onPress={controls.launchFactory} style={[styles.launchBtn, { borderColor: t.accent, backgroundColor: t.panel }]}>
-            <Text style={[styles.launchText, { color: t.accent }]}>LAUNCH FACTORY RADIO</Text>
+            <Text allowFontScaling={false} style={[styles.launchText, { color: t.accent }]}>LAUNCH FACTORY RADIO</Text>
           </Press>
-          <Text style={[styles.tunerNote, { color: t.textFaint }]}>
+          <Text allowFontScaling={false} style={[styles.tunerNote, { color: t.textFaint }]}>
             Live tuning runs in the unit's factory radio app (no tuner API on this hardware).
           </Text>
         </>
@@ -308,7 +311,7 @@ function Btn({ label, theme, primary, onPress }: { label: string; theme: ReturnT
       onPress={onPress}
       style={[styles.btn, { borderColor: primary ? theme.accent : theme.panelBorder, flex: primary ? 1.6 : 1 }]}
     >
-      <Text style={{ color: primary ? theme.accent : theme.textDim, fontSize: 18, fontFamily: 'Oxanium', fontWeight: '600' }}>
+      <Text allowFontScaling={false} style={{ color: primary ? theme.accent : theme.textDim, fontSize: 18, fontFamily: 'Oxanium', fontWeight: '600' }}>
         {label}
       </Text>
     </Press>

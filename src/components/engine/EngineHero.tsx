@@ -25,7 +25,7 @@ const RpmNumeral = React.memo(function RpmNumeral() {
   const rpm = useTelemetry((d) => (has(d.obd.rpm) ? Math.round(d.obd.rpm.value / 50) * 50 : null));
   const red = rpm != null && rpm >= REDLINE_RPM;
   return (
-    <Text style={[s.rpm, { color: rpm == null ? t.absent : red ? t.warn : t.accent }]}>
+    <Text allowFontScaling={false} style={[s.rpm, { color: rpm == null ? t.absent : red ? t.warn : t.accent }]}>
       {rpm == null ? '—' : rpm.toLocaleString()}
     </Text>
   );
@@ -63,7 +63,7 @@ const RpmBar = React.memo(function RpmBar() {
       </Svg>
       <View style={s.scale}>
         {[0, 1, 2, 3, 4, 5].map((k) => (
-          <Text key={k} style={[s.scaleText, { color: k * 1000 >= REDLINE_RPM ? t.warn : t.textFaint, left: (k * 1000 * BAR_W) / RPM_FULL - (k ? 10 : 0) }]}>
+          <Text allowFontScaling={false} key={k} style={[s.scaleText, { color: k * 1000 >= REDLINE_RPM ? t.warn : t.textFaint, left: (k * 1000 * BAR_W) / RPM_FULL - (k ? 10 : 0) }]}>
             {k ? `${k}k` : '0'}
           </Text>
         ))}
@@ -76,10 +76,10 @@ export const RpmCard = React.memo(function RpmCard() {
   const t = useTheme();
   const connected = useTelemetry((d) => d.obd.connected);
   return (
-    <Card title="ENGINE RPM" right={<Text style={[s.redline, { color: t.warn }]}>REDLINE {REDLINE_RPM.toLocaleString()}</Text>} style={{ height: 288 }}>
+    <Card title="ENGINE RPM" right={<Text allowFontScaling={false} style={[s.redline, { color: t.warn }]}>REDLINE {REDLINE_RPM.toLocaleString()}</Text>} style={{ height: 288 }}>
       <RpmNumeral />
       <RpmBar />
-      {!connected && <Text style={[s.hint, { color: t.absent }]}>OBD2 · CONNECT THE DONGLE IN SET</Text>}
+      {!connected && <Text allowFontScaling={false} style={[s.hint, { color: t.absent }]}>OBD2 · CONNECT THE DONGLE IN SET</Text>}
     </Card>
   );
 });
@@ -114,7 +114,7 @@ export const CoolantCard = React.memo(function CoolantCard() {
   const a = absent ? 180 : angleOf(temp);
   const tip = polar(ACX, ACY, AR, a);
   return (
-    <Card title="COOLANT" right={<Text style={[s.zone, { color }]}>{state ?? 'NO DATA'}</Text>} style={{ height: 270 }}>
+    <Card title="COOLANT" right={<Text allowFontScaling={false} style={[s.zone, { color }]}>{state ?? 'NO DATA'}</Text>} style={{ height: 270 }}>
       <View style={{ width: ARC_W, height: ARC_H }}>
         <Svg width={ARC_W} height={ARC_H}>
           {zones.map((z, i) => (
@@ -124,13 +124,13 @@ export const CoolantCard = React.memo(function CoolantCard() {
           {!absent && <Circle cx={tip.x} cy={tip.y} r={11} fill={color} />}
         </Svg>
         <View style={s.arcCenter}>
-          <Text style={[s.arcValue, { color: absent ? t.absent : t.text }]}>
+          <Text allowFontScaling={false} style={[s.arcValue, { color: absent ? t.absent : t.text }]}>
             {absent ? '—' : temp}
-            {!absent && <Text style={[s.arcUnit, { color: t.textDim }]}> °F</Text>}
+            {!absent && <Text allowFontScaling={false} style={[s.arcUnit, { color: t.textDim }]}> °F</Text>}
           </Text>
         </View>
-        <Text style={[s.arcEnd, { left: ACX - AR - 26, color: t.textFaint }]}>{C_MIN}</Text>
-        <Text style={[s.arcEnd, { left: ACX + AR - 14, color: t.textFaint }]}>{C_MAX}</Text>
+        <Text allowFontScaling={false} style={[s.arcEnd, { left: ACX - AR - 26, color: t.textFaint }]}>{C_MIN}</Text>
+        <Text allowFontScaling={false} style={[s.arcEnd, { left: ACX + AR - 14, color: t.textFaint }]}>{C_MAX}</Text>
       </View>
     </Card>
   );

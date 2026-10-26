@@ -252,7 +252,7 @@ function Label({
 }) {
   const m = mono ? MONO : OXANIUM;
   return (
-    <Text
+    <Text allowFontScaling={false}
       numberOfLines={1}
       style={[
         styles.label,

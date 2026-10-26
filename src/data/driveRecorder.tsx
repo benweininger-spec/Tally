@@ -23,6 +23,7 @@ export function DriveRecorderFeed() {
         long: m.longG.status !== 'absent' ? m.longG.value : null,
         speedMph: m.speedMph.value,
         rpm: d.obd.connected && d.obd.rpm.status !== 'absent' ? d.obd.rpm.value : null,
+        throttle: d.obd.connected && d.obd.throttlePct.status !== 'absent' ? d.obd.throttlePct.value : null,
       },
       nowS()
     );

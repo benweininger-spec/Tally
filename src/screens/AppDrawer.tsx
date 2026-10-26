@@ -105,13 +105,13 @@ function DrawerBody() {
       {/* header */}
       <View style={[styles.header, { borderBottomColor: t.hairline }]}>
         <View style={styles.headLeft}>
-          <Text style={[styles.title, { color: t.accent }]}>APPS</Text>
-          <Text style={[styles.count, { color: t.textFaint }]}>
+          <Text allowFontScaling={false} style={[styles.title, { color: t.accent }]}>APPS</Text>
+          <Text allowFontScaling={false} style={[styles.count, { color: t.textFaint }]}>
             {loaded ? `${apps.length} INSTALLED` : 'LOADING…'}
           </Text>
         </View>
         <Press onPress={close} style={[styles.closeBtn, { borderColor: t.panelBorder }]} hitSlop={8}>
-          <Text style={[styles.closeText, { color: t.textDim }]}>CLOSE ✕</Text>
+          <Text allowFontScaling={false} style={[styles.closeText, { color: t.textDim }]}>CLOSE ✕</Text>
         </Press>
       </View>
 
@@ -119,8 +119,8 @@ function DrawerBody() {
       <View style={styles.grid} {...pan.panHandlers}>
         {loaded && apps.length === 0 ? (
           <View style={styles.empty}>
-            <Text style={[styles.emptyTitle, { color: t.textDim }]}>NO APPS FOUND</Text>
-            <Text style={[styles.emptyHint, { color: t.textFaint }]}>
+            <Text allowFontScaling={false} style={[styles.emptyTitle, { color: t.textDim }]}>NO APPS FOUND</Text>
+            <Text allowFontScaling={false} style={[styles.emptyHint, { color: t.textFaint }]}>
               {available
                 ? 'Package visibility may be blocked — rebuild with plugins/withLauncherQueries.'
                 : 'This build is missing the app-list module — prebuild + rebuild the dev client.'}
@@ -143,7 +143,7 @@ function DrawerBody() {
 
       {/* footer: hint · pager · toast */}
       <View style={styles.footer}>
-        <Text style={[styles.hint, { color: toast ? (toast.warn ? t.warn : t.accent) : t.textFaint }]}>
+        <Text allowFontScaling={false} style={[styles.hint, { color: toast ? (toast.warn ? t.warn : t.accent) : t.textFaint }]}>
           {toast ? toast.msg : 'TAP TO OPEN · HOLD TO PIN TO DOCK'}
         </Text>
         {pages > 1 && (
@@ -190,15 +190,15 @@ function AppTile({
         <Image source={{ uri: app.iconDataUri }} style={styles.icon} />
       ) : (
         <View style={[styles.icon, styles.monogram, { borderColor: t.accent }]}>
-          <Text style={[styles.monoText, { color: t.accent }]}>{app.label.slice(0, 1).toUpperCase()}</Text>
+          <Text allowFontScaling={false} style={[styles.monoText, { color: t.accent }]}>{app.label.slice(0, 1).toUpperCase()}</Text>
         </View>
       )}
-      <Text numberOfLines={2} style={[styles.label, { color: t.text }]}>
+      <Text allowFontScaling={false} numberOfLines={2} style={[styles.label, { color: t.text }]}>
         {app.label}
       </Text>
       {pinned && (
         <View style={[styles.badge, { borderColor: t.accent }]}>
-          <Text style={[styles.badgeText, { color: t.accent }]}>DOCK</Text>
+          <Text allowFontScaling={false} style={[styles.badgeText, { color: t.accent }]}>DOCK</Text>
         </View>
       )}
     </Press>
@@ -212,7 +212,7 @@ function PageBtn({ t, label, disabled, onPress }: { t: Theme; label: string; dis
       disabled={disabled}
       style={[styles.pageBtn, { borderColor: disabled ? t.hairline : t.panelBorder }]}
     >
-      <Text style={[styles.pageBtnText, { color: disabled ? t.absent : t.accent }]}>{label}</Text>
+      <Text allowFontScaling={false} style={[styles.pageBtnText, { color: disabled ? t.absent : t.accent }]}>{label}</Text>
     </Press>
   );
 }

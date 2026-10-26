@@ -40,7 +40,7 @@ export function NumPad({ t, onKey, decimals = true }: { t: Theme; onKey: (k: str
         const off = k === '.' && !decimals;
         return (
           <Press key={k} disabled={off} onPress={() => onKey(k)} style={[s.key, { borderColor: t.panelBorder, opacity: off ? 0.25 : 1 }]}>
-            <Text style={[s.keyText, { color: k === '⌫' ? t.textDim : t.text }]}>{k}</Text>
+            <Text allowFontScaling={false} style={[s.keyText, { color: k === '⌫' ? t.textDim : t.text }]}>{k}</Text>
           </Press>
         );
       })}
@@ -74,13 +74,13 @@ export function NumField({
   const shown = edit.text === '' ? '—' : thousands && !edit.text.includes('.') ? Number(edit.text).toLocaleString() : edit.text;
   return (
     <Press onPress={onFocus} style={[s.field, { borderColor: active ? t.accent : t.panelBorder, backgroundColor: t.panel }]}>
-      <Text style={[s.fieldLabel, { color: active ? t.accent : t.textFaint }]}>{label}</Text>
-      <Text style={[s.fieldValue, { color: edit.text === '' ? t.absent : edit.fresh ? t.textDim : t.text }]}>
+      <Text allowFontScaling={false} style={[s.fieldLabel, { color: active ? t.accent : t.textFaint }]}>{label}</Text>
+      <Text allowFontScaling={false} style={[s.fieldValue, { color: edit.text === '' ? t.absent : edit.fresh ? t.textDim : t.text }]}>
         {prefix && edit.text !== '' ? prefix : ''}
         {shown}
-        {suffix && edit.text !== '' ? <Text style={[s.fieldSuffix, { color: t.textDim }]}> {suffix}</Text> : null}
+        {suffix && edit.text !== '' ? <Text allowFontScaling={false} style={[s.fieldSuffix, { color: t.textDim }]}> {suffix}</Text> : null}
       </Text>
-      {hint ? <Text style={[s.fieldHint, { color: t.textFaint }]}>{hint}</Text> : null}
+      {hint ? <Text allowFontScaling={false} style={[s.fieldHint, { color: t.textFaint }]}>{hint}</Text> : null}
     </Press>
   );
 }
@@ -103,7 +103,7 @@ export function Segmented<T extends string>({
         const on = o.id === value;
         return (
           <Press key={o.id} onPress={() => onChange(o.id)} style={[s.segBtn, { borderColor: on ? t.accent : t.panelBorder, backgroundColor: on ? t.panel : 'transparent' }]}>
-            <Text style={[s.segText, { color: on ? t.accent : t.textDim }]}>{o.label}</Text>
+            <Text allowFontScaling={false} style={[s.segText, { color: on ? t.accent : t.textDim }]}>{o.label}</Text>
           </Press>
         );
       })}
@@ -130,11 +130,11 @@ export function DateSteps({ t, at, onChange }: { t: Theme; at: number; onChange:
   const cell = (part: 'm' | 'd' | 'y', text: string) => (
     <View style={s.dateCell}>
       <Press onPress={() => shift(part, -1)} style={[s.dateBtn, { borderColor: t.panelBorder }]}>
-        <Text style={[s.dateArrow, { color: t.textDim }]}>‹</Text>
+        <Text allowFontScaling={false} style={[s.dateArrow, { color: t.textDim }]}>‹</Text>
       </Press>
-      <Text style={[s.dateText, { color: t.text }]}>{text}</Text>
+      <Text allowFontScaling={false} style={[s.dateText, { color: t.text }]}>{text}</Text>
       <Press onPress={() => shift(part, 1)} style={[s.dateBtn, { borderColor: t.panelBorder }]}>
-        <Text style={[s.dateArrow, { color: t.textDim }]}>›</Text>
+        <Text allowFontScaling={false} style={[s.dateArrow, { color: t.textDim }]}>›</Text>
       </Press>
     </View>
   );
@@ -144,7 +144,7 @@ export function DateSteps({ t, at, onChange }: { t: Theme; at: number; onChange:
       {cell('d', String(d.getDate()))}
       {cell('y', String(d.getFullYear()))}
       <Press onPress={() => onChange(Date.now())} style={[s.today, { borderColor: t.panelBorder }]}>
-        <Text style={[s.segText, { color: t.textDim }]}>TODAY</Text>
+        <Text allowFontScaling={false} style={[s.segText, { color: t.textDim }]}>TODAY</Text>
       </Press>
     </View>
   );

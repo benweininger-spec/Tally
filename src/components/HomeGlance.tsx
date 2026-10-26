@@ -58,21 +58,21 @@ export const EcoCard = React.memo(function EcoCard() {
   return (
     <View style={[s.card, { borderColor: eco ? t.eco : t.panelBorder, backgroundColor: t.panel }]}>
       <View style={s.head}>
-        <Text style={[s.label, { color: v.obd ? t.textFaint : t.absent }]}>ECONOMY</Text>
+        <Text allowFontScaling={false} style={[s.label, { color: v.obd ? t.textFaint : t.absent }]}>ECONOMY</Text>
         <View style={[s.pill, { borderColor: eco ? t.eco : t.panelBorder, backgroundColor: eco ? t.eco : 'transparent' }]}>
-          <Text style={[s.pillText, { color: eco ? t.bg : t.textFaint }]}>ECO</Text>
+          <Text allowFontScaling={false} style={[s.pillText, { color: eco ? t.bg : t.textFaint }]}>ECO</Text>
         </View>
       </View>
 
       {idle ? (
-        <Text style={[s.big, { color: t.text }]}>
+        <Text allowFontScaling={false} style={[s.big, { color: t.text }]}>
           IDLE
-          <Text style={[s.unit, { color: t.textDim }]}>{v.gph != null ? `  ${v.gph.toFixed(2)} gal/h` : ''}</Text>
+          <Text allowFontScaling={false} style={[s.unit, { color: t.textDim }]}>{v.gph != null ? `  ${v.gph.toFixed(2)} gal/h` : ''}</Text>
         </Text>
       ) : (
-        <Text style={[s.big, { color: v.mpg == null ? t.absent : ecoCol }]}>
+        <Text allowFontScaling={false} style={[s.big, { color: v.mpg == null ? t.absent : ecoCol }]}>
           {v.mpg == null ? '—' : v.mpg >= MPG_BAR_MAX ? `${MPG_BAR_MAX}+` : v.mpg}
-          {v.mpg != null && <Text style={[s.unit, { color: t.textDim }]}> mpg</Text>}
+          {v.mpg != null && <Text allowFontScaling={false} style={[s.unit, { color: t.textDim }]}> mpg</Text>}
         </Text>
       )}
 
@@ -83,19 +83,19 @@ export const EcoCard = React.memo(function EcoCard() {
         <View style={[s.tick, { left: pct(ecoFrom), backgroundColor: t.eco }]} />
       </View>
       <View style={s.scale}>
-        <Text style={[s.scaleText, { color: t.textFaint }]}>0</Text>
-        <Text style={[s.scaleText, { color: t.eco, position: 'absolute', left: pct(ecoFrom), marginLeft: -8 }]}>{ECO_MPG} ECO →</Text>
-        <Text style={[s.scaleText, { color: t.textFaint }]}>{MPG_BAR_MAX}+</Text>
+        <Text allowFontScaling={false} style={[s.scaleText, { color: t.textFaint }]}>0</Text>
+        <Text allowFontScaling={false} style={[s.scaleText, { color: t.eco, position: 'absolute', left: pct(ecoFrom), marginLeft: -8 }]}>{ECO_MPG} ECO →</Text>
+        <Text allowFontScaling={false} style={[s.scaleText, { color: t.textFaint }]}>{MPG_BAR_MAX}+</Text>
       </View>
 
       <View style={s.avgRow}>
-        <Text style={[s.foot, { color: t.textFaint }]}>
-          TRIP <Text style={[s.avgVal, { color: trip ? t.text : t.absent }]}>{trip || '—'}</Text>
+        <Text allowFontScaling={false} style={[s.foot, { color: t.textFaint }]}>
+          TRIP <Text allowFontScaling={false} style={[s.avgVal, { color: trip ? t.text : t.absent }]}>{trip || '—'}</Text>
         </Text>
-        <Text style={[s.foot, { color: t.textFaint }]}>
-          LIFETIME <Text style={[s.avgVal, { color: avgs.life ? t.text : t.absent }]}>{avgs.life || '—'}</Text>
+        <Text allowFontScaling={false} style={[s.foot, { color: t.textFaint }]}>
+          LIFETIME <Text allowFontScaling={false} style={[s.avgVal, { color: avgs.life ? t.text : t.absent }]}>{avgs.life || '—'}</Text>
         </Text>
-        {!v.obd && <Text style={[s.foot, { color: t.absent }]}>NEEDS OBD</Text>}
+        {!v.obd && <Text allowFontScaling={false} style={[s.foot, { color: t.absent }]}>NEEDS OBD</Text>}
       </View>
     </View>
   );
@@ -112,19 +112,19 @@ export const WarmupCard = React.memo(function WarmupCard() {
     state == null ? 'NO OBD' : state === 'cold' ? `WARMING UP · ${Math.round(frac * 100)}%` : state === 'hot' ? 'RUNNING HOT' : 'WARM · READY';
   return (
     <View style={[s.card, { borderColor: state === 'hot' ? t.warn : t.panelBorder, backgroundColor: t.panel }]}>
-      <Text style={[s.label, { color: f == null ? t.absent : t.textFaint }]}>ENGINE TEMP</Text>
-      <Text style={[s.big, { color: f == null ? t.absent : color }]}>
+      <Text allowFontScaling={false} style={[s.label, { color: f == null ? t.absent : t.textFaint }]}>ENGINE TEMP</Text>
+      <Text allowFontScaling={false} style={[s.big, { color: f == null ? t.absent : color }]}>
         {f == null ? '—' : f}
-        {f != null && <Text style={[s.unit, { color: t.textDim }]}> °F</Text>}
+        {f != null && <Text allowFontScaling={false} style={[s.unit, { color: t.textDim }]}> °F</Text>}
       </Text>
       <View style={[s.track, { backgroundColor: t.hairline }]}>
         <View style={[s.fill, { width: pct(frac), backgroundColor: color }]} />
       </View>
       <View style={s.scale}>
-        <Text style={[s.scaleText, { color: t.textFaint }]}>COLD</Text>
-        <Text style={[s.scaleText, { color: t.textFaint }]}>{COOLANT_WARM_F}°</Text>
+        <Text allowFontScaling={false} style={[s.scaleText, { color: t.textFaint }]}>COLD</Text>
+        <Text allowFontScaling={false} style={[s.scaleText, { color: t.textFaint }]}>{COOLANT_WARM_F}°</Text>
       </View>
-      <Text style={[s.foot, { color }]}>{caption}</Text>
+      <Text allowFontScaling={false} style={[s.foot, { color }]}>{caption}</Text>
     </View>
   );
 });

@@ -12,6 +12,9 @@ import { requireNativeModule } from 'expo';
 
 interface MtcNative {
   last(action: string): Record<string, unknown> | null;
+  radioCommand?(cmd: 'seek_up' | 'seek_down' | 'tune_up' | 'tune_down'): boolean;
+  radioSetFreq?(hz: number): boolean;
+  radioRequestState?(): boolean;
   addListener(event: string, cb: (p: MtcEvent) => void): { remove: () => void };
 }
 export interface MtcEvent {
@@ -46,6 +49,8 @@ export interface MtcState {
   /** REVERSE (the camera trigger), from report.event type "backview"; null = never heard */
   reverse: boolean | null;
   reverseAt: number | null;
+  /** the factory radio service's state report: Hz, band limits + step (null until heard) */
+  radio: { freqHz: number; minHz: number; maxHz: number; stepHz: number; fm: boolean; at: number } | null;
   /** most recent raw event per action, for diagnostics */
   lastByAction: Record<string, Record<string, unknown>>;
 }
@@ -54,7 +59,7 @@ const truthy = (v: unknown) => v === true || v === 1 || v === '1' || v === 'true
 
 export class MtcProvider {
   private sub: { remove: () => void } | null = null;
-  private state: MtcState = { available: false, headlights: null, headlightsAt: null, acc: null, voltage: null, voltageAt: null, handbrake: null, reverse: null, reverseAt: null, lastByAction: {} };
+  private state: MtcState = { available: false, headlights: null, headlightsAt: null, acc: null, voltage: null, voltageAt: null, handbrake: null, reverse: null, reverseAt: null, radio: null, lastByAction: {} };
 
   start(): void {
     const m = mod();
@@ -76,6 +81,31 @@ export class MtcProvider {
 
   getSnapshot(): MtcState {
     return this.state;
+  }
+
+  /** Seek / tune on the MCU (whitelisted in Kotlin). false = not available on this build/unit. */
+  radioCommand(cmd: 'seek_up' | 'seek_down' | 'tune_up' | 'tune_down'): boolean {
+    try {
+      return !!mod()?.radioCommand?.(cmd);
+    } catch {
+      return false;
+    }
+  }
+
+  radioSetFreq(hz: number): boolean {
+    try {
+      return !!mod()?.radioSetFreq?.(Math.round(hz));
+    } catch {
+      return false;
+    }
+  }
+
+  radioRequestState(): void {
+    try {
+      mod()?.radioRequestState?.();
+    } catch {
+      /* optional */
+    }
   }
 
   private applyHeadlight(v: unknown, at: number) {
@@ -108,6 +138,24 @@ export class MtcProvider {
         if (Number.isFinite(v) && v > 0) { this.state.voltage = v / 10; this.state.voltageAt = e.at; }
         break;
       }
+      case 'com.microntek.radio.report':
+        if (e.extras.type === 'content') {
+          // freq = (band << 28) | Hz
+          const raw = Number(e.extras.freq);
+          const hz = Number.isFinite(raw) ? raw & 0x0fffffff : NaN;
+          const step = Number(e.extras.freqstep);
+          if (hz > 0) {
+            this.state.radio = {
+              freqHz: hz,
+              minHz: Number(e.extras.freqmin) || 87_500_000,
+              maxHz: Number(e.extras.freqmax) || 107_900_000,
+              stepHz: step > 0 ? step : 200_000,
+              fm: e.extras.isfm !== false,
+              at: e.at,
+            };
+          }
+        }
+        break;
       case 'carmanager.handbrake':
         this.state.handbrake = truthy(e.extras.value);
         break;

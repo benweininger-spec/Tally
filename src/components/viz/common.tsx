@@ -57,7 +57,7 @@ export function VizLabel({
   const W = 400;
   const left = align === 'left' ? x : align === 'center' ? x - W / 2 : x - W;
   return (
-    <Text
+    <Text allowFontScaling={false}
       numberOfLines={1}
       style={[
         styles.label,

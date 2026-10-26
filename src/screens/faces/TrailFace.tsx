@@ -80,11 +80,11 @@ const AngleCard = React.memo(function AngleCard({ axis }: { axis: 'pitch' | 'rol
         : r > 0 ? 'RIGHT SIDE DOWN' : 'LEFT SIDE DOWN';
   return (
     <Card t={t} style={{ flex: 1, height: 262 }} borderColor={caution ? t.warn : undefined}>
-      <Text style={[styles.label, { color: t.textFaint }]}>{axis.toUpperCase()}</Text>
-      <Text style={[styles.angle, { color: !a.live ? t.absent : caution ? t.warn : t.accent }]}>
+      <Text allowFontScaling={false} style={[styles.label, { color: t.textFaint }]}>{axis.toUpperCase()}</Text>
+      <Text allowFontScaling={false} style={[styles.angle, { color: !a.live ? t.absent : caution ? t.warn : t.accent }]}>
         {a.live ? `${signed(v)}°` : '—'}
       </Text>
-      <Text style={[styles.caption, { color: caution ? t.warn : t.textDim }]}>{caption}</Text>
+      <Text allowFontScaling={false} style={[styles.caption, { color: caution ? t.warn : t.textDim }]}>{caption}</Text>
     </Card>
   );
 });
@@ -95,10 +95,10 @@ const SpeedCard = React.memo(function SpeedCard() {
   const mph = useTelemetry((d) => (has(d.motion.speedMph) ? Math.round(d.motion.speedMph.value) : null));
   return (
     <Card t={t} style={{ flex: 1, justifyContent: 'center' }}>
-      <Text style={[styles.label, { color: t.textFaint }]}>GROUND SPEED</Text>
-      <Text style={[styles.value, { color: mph == null ? t.absent : t.accent }]}>
+      <Text allowFontScaling={false} style={[styles.label, { color: t.textFaint }]}>GROUND SPEED</Text>
+      <Text allowFontScaling={false} style={[styles.value, { color: mph == null ? t.absent : t.accent }]}>
         {mph == null ? '—' : mph}
-        <Text style={{ fontSize: 26, color: t.textDim }}> mph</Text>
+        <Text allowFontScaling={false} style={{ fontSize: 26, color: t.textDim }}> mph</Text>
       </Text>
     </Card>
   );
@@ -110,8 +110,8 @@ const LateralCard = React.memo(function LateralCard() {
   return (
     <Card t={t} style={{ paddingVertical: 18 }}>
       <View style={styles.latHead}>
-        <Text style={[styles.label, { color: t.textFaint }]}>LATERAL G</Text>
-        <Text style={[styles.latValue, { color: live ? t.text : t.absent }]}>
+        <Text allowFontScaling={false} style={[styles.label, { color: t.textFaint }]}>LATERAL G</Text>
+        <Text allowFontScaling={false} style={[styles.latValue, { color: live ? t.text : t.absent }]}>
           {live ? `${latG >= 0 ? '+' : '−'}${Math.abs(latG).toFixed(2)} g` : '—'}
         </Text>
       </View>

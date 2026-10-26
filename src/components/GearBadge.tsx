@@ -20,12 +20,12 @@ export const GearBadge = React.memo(function GearBadge({ size }: { size: number 
     <View pointerEvents="none" style={[s.wrap, { top: size * 0.765, width: size }]}>
       <View style={[s.strip, { gap: 18 * k, borderColor: t.panelBorder, paddingHorizontal: 18 * k, height: 72 * k }]}>
         {(['P', 'R', 'D'] as const).map((l) => (
-          <Text key={l} style={[s.letter, { fontSize: 40 * k, color: color(l), opacity: lit(l) ? 1 : 0.55 }]}>
+          <Text allowFontScaling={false} key={l} style={[s.letter, { fontSize: 40 * k, color: color(l), opacity: lit(l) ? 1 : 0.55 }]}>
             {l}
           </Text>
         ))}
         <View style={[s.numBox, { width: 54 * k, height: 54 * k, borderColor: num ? t.accent : t.panelBorder }]}>
-          <Text style={[s.num, { fontSize: 38 * k, color: num ? t.accent : t.absent }]}>{num ?? '–'}</Text>
+          <Text allowFontScaling={false} style={[s.num, { fontSize: 38 * k, color: num ? t.accent : t.absent }]}>{num ?? '–'}</Text>
         </View>
       </View>
     </View>

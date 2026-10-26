@@ -7,7 +7,7 @@
  */
 import type { DashboardData } from '../../data/types';
 import { buildTrace, clamp, type Trace } from '../../lib/pulse';
-import { readRecord, RECORDER_SLOTS, type DriveRecorder } from '../../lib/driveRecorder';
+import { readRecord, readThrottle, RECORDER_SLOTS, type DriveRecorder } from '../../lib/driveRecorder';
 import { bootSweep, connectSweep, type SweepFrame } from '../../lib/sweep';
 import { activeSweep, endSweep } from './sweepChannel';
 
@@ -16,12 +16,12 @@ export const REDLINE_RPM = 4700;
 export const SPEED_FULL = 80;
 export const LOOP_MS = 40; // ~25 fps cap
 /**
- * The trace inside the ring is the last minute of RPM while OBD is live, SPEED without it
- * (it was longitudinal g — on the truck that read as jittery noise with no meaning to the
- * driver, 2026-10-26). Smoothed (1.5 s box average) and drawn as a spline, so it rolls
- * like a wave.
+ * The trace inside the ring is the last minute of THROTTLE position while OBD is live, SPEED
+ * without it (history: longitudinal g → RPM → throttle, by the driver's call 2026-10-26 —
+ * the ring already shows RPM). Smoothed (1.5 s box average) and drawn as a spline, so it
+ * rolls like a wave; throttle is drawn on a fixed 0–100 % scale.
  */
-export const CAPTION_RPM = 'RPM · LAST MINUTE';
+export const CAPTION_RPM = 'THROTTLE · LAST MINUTE';
 export const CAPTION = 'SPEED · LAST MINUTE';
 export const BOOT_CAPTION = 'INSTRUMENTS ONLINE · 2TR-FE';
 
@@ -41,16 +41,18 @@ export const createPulseDisp = (): PulseDisp => ({ speed: 0, rpm: 0, frac: 0, ob
 export interface TraceState {
   speeds: Float32Array;
   rpms: Float32Array;
+  thr: Float32Array;
   version: number;
   trace: Trace | null;
   /** eased full scale — crossing 54 mph re-scales over ~1 s instead of snapping */
   top: number | null;
-  /** what the trace shows: RPM while OBD is live, else speed */
-  kind: 'rpm' | 'speed';
+  /** what the trace shows: throttle while OBD is live, else speed */
+  kind: 'throttle' | 'speed';
 }
 export const createTraceState = (): TraceState => ({
   speeds: new Float32Array(RECORDER_SLOTS),
   rpms: new Float32Array(RECORDER_SLOTS),
+  thr: new Float32Array(RECORDER_SLOTS),
   version: -1,
   trace: null,
   top: null,
@@ -66,17 +68,18 @@ export function stepTrace(st: TraceState, rec: DriveRecorder, box: { x: number; 
   if (rec.version === st.version && st.trace) return false;
   st.version = rec.version;
   const n = readRecord(rec, st.speeds, st.rpms);
-  const kind = n > 0 && Number.isFinite(st.rpms[n - 1]) ? 'rpm' : 'speed';
+  readThrottle(rec, st.thr);
+  const kind = n > 0 && Number.isFinite(st.thr[n - 1]) ? 'throttle' : 'speed';
   if (kind !== st.kind) {
     st.kind = kind;
     st.top = null; // new units: start the scale fresh
   }
   const tr = buildTrace({
-    samples: kind === 'rpm' ? st.rpms : st.speeds, // NaN (no OBD yet) reads as 0
+    samples: kind === 'throttle' ? st.thr : st.speeds, // NaN (no OBD yet) reads as 0
     count: n,
     ...box,
-    top: st.top ?? undefined,
-    ...(kind === 'rpm' ? { scaleMin: 3000, scaleStep: 1000 } : null),
+    // throttle: a fixed 0–100 % scale (never rescales); speed: eased auto-scale
+    top: kind === 'throttle' ? 100 : st.top ?? undefined,
   });
   // ~1 s ease at the recorder's 20 Hz; snap when within a hair so parked goes static
   st.top = st.top == null ? tr.want : Math.abs(tr.want - st.top) < 0.05 ? tr.want : st.top + (tr.want - st.top) * 0.1;

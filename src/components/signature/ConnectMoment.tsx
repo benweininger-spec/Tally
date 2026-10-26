@@ -47,7 +47,7 @@ export const ConnectMoment = React.memo(function ConnectMoment({ size }: { size:
 
   if (!ticker) return null;
   return (
-    <Animated.Text
+    <Animated.Text allowFontScaling={false}
       numberOfLines={1}
       style={[
         styles.ticker,

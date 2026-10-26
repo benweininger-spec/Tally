@@ -118,20 +118,20 @@ export const AltitudeRibbon = React.memo(function AltitudeRibbon({
           )}
         </Svg>
         {!compact && (
-          <Text style={[styles.caption, { color: t.textFaint }]}>
+          <Text allowFontScaling={false} style={[styles.caption, { color: t.textFaint }]}>
             {n >= 2 ? `ALTITUDE · LAST ${spanMi.toFixed(1)} MI` : 'ALTITUDE · AWAITING GPS'}
           </Text>
         )}
       </View>
 
       <View style={[styles.numBlock, { width: numW }]}>
-        <Text style={[styles.label, { color: t.textFaint, fontSize: compact ? 15 : 17 }]}>GRADE</Text>
-        <Text style={[styles.grade, { color: gradeColor, fontSize: compact ? 30 : 72, lineHeight: compact ? 36 : 80 }]}>
+        <Text allowFontScaling={false} style={[styles.label, { color: t.textFaint, fontSize: compact ? 15 : 17 }]}>GRADE</Text>
+        <Text allowFontScaling={false} style={[styles.grade, { color: gradeColor, fontSize: compact ? 30 : 72, lineHeight: compact ? 36 : 80 }]}>
           {gradeText}
-          <Text style={{ fontSize: compact ? 16 : 30, color: t.textDim }}> %</Text>
+          <Text allowFontScaling={false} style={{ fontSize: compact ? 16 : 30, color: t.textDim }}> %</Text>
         </Text>
         {!compact && (
-          <Text style={[styles.alt, { color: t.textDim }]}>
+          <Text allowFontScaling={false} style={[styles.alt, { color: t.textDim }]}>
             {n >= 1 ? `${Math.round(alt[n - 1]).toLocaleString()} ft` : '— ft'}
           </Text>
         )}

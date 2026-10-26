@@ -109,7 +109,7 @@ const FaceDots = React.memo(function FaceDots({ index, onPick }: { index: number
           <View style={[styles.dot, { backgroundColor: i === index ? t.accent : t.panelBorder }]} />
         </Pressable>
       ))}
-      <Text style={[styles.faceName, { color: t.textFaint }]}>{FACES[index].id.toUpperCase()}</Text>
+      <Text allowFontScaling={false} style={[styles.faceName, { color: t.textFaint }]}>{FACES[index].id.toUpperCase()}</Text>
     </View>
   );
 });
@@ -162,8 +162,8 @@ const NightSuggest = React.memo(function NightSuggest({
       hitSlop={12}
       style={[styles.suggest, { borderColor: t.accent, backgroundColor: t.bg }]}
     >
-      <Text style={[styles.suggestTitle, { color: t.accent }]}>NIGHT FACE ↗</Text>
-      <Text style={[styles.suggestSub, { color: t.textFaint }]}>IT'S DARK · TAP TO DIM</Text>
+      <Text allowFontScaling={false} style={[styles.suggestTitle, { color: t.accent }]}>NIGHT FACE ↗</Text>
+      <Text allowFontScaling={false} style={[styles.suggestSub, { color: t.textFaint }]}>IT'S DARK · TAP TO DIM</Text>
     </Press>
   );
 });

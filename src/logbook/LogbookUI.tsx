@@ -68,11 +68,11 @@ function Sheet({ t, title, width, onClose, right, children }: { t: Theme; title:
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         <View style={[ls.sheet, { width, backgroundColor: t.bg, borderColor: t.panelBorder }]}>
           <View style={ls.headRow}>
-            <Text style={[ls.title, { color: t.accent }]}>{title}</Text>
+            <Text allowFontScaling={false} style={[ls.title, { color: t.accent }]}>{title}</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 24 }}>
               {right}
               <Press hitSlop={16} onPress={onClose}>
-                <Text style={[ls.close, { color: t.textDim }]}>CLOSE ✕</Text>
+                <Text allowFontScaling={false} style={[ls.close, { color: t.textDim }]}>CLOSE ✕</Text>
               </Press>
             </View>
           </View>
@@ -208,7 +208,7 @@ function FillUpSheet({ onClose }: { onClose: () => void }) {
             </View>
           </View>
           <Press onPress={save} disabled={partialNeedsGal} style={[ls.big, { borderColor: t.accent, backgroundColor: t.panel, opacity: partialNeedsGal ? 0.4 : 1 }]}>
-            <Text style={[ls.bigText, { color: t.accent }]}>SAVE FILL-UP</Text>
+            <Text allowFontScaling={false} style={[ls.bigText, { color: t.accent }]}>SAVE FILL-UP</Text>
           </Press>
         </View>
         <NumPad t={t} onKey={onKey} decimals={active !== 'odo'} />
@@ -247,7 +247,7 @@ function LogbookSheet({ initialTab, initialType, onClose, onAddFill }: { initial
     <Sheet t={t} title="LOGBOOK" width={1500} onClose={onClose} right={tabs}>
       {/* odometer: the anchor for every mileage-based reminder */}
       <View style={[st.odoRow, { borderColor: t.hairline }]}>
-        <Text style={[ls.label, { color: t.textFaint }]}>ODOMETER</Text>
+        <Text allowFontScaling={false} style={[ls.label, { color: t.textFaint }]}>ODOMETER</Text>
         {odoEdit ? (
           <View style={{ flexDirection: 'row', gap: 20, alignItems: 'flex-start', flex: 1 }}>
             <View style={{ flex: 1, gap: 12 }}>
@@ -261,10 +261,10 @@ function LogbookSheet({ initialTab, initialType, onClose, onAddFill }: { initial
                   }}
                   style={[ls.big, { flex: 1, borderColor: t.accent }]}
                 >
-                  <Text style={[ls.bigText, { color: t.accent }]}>SAVE</Text>
+                  <Text allowFontScaling={false} style={[ls.bigText, { color: t.accent }]}>SAVE</Text>
                 </Press>
                 <Press onPress={() => setOdoEdit(null)} style={[ls.big, { flex: 1, borderColor: t.panelBorder }]}>
-                  <Text style={[ls.bigText, { color: t.textDim }]}>CANCEL</Text>
+                  <Text allowFontScaling={false} style={[ls.bigText, { color: t.textDim }]}>CANCEL</Text>
                 </Press>
               </View>
             </View>
@@ -272,11 +272,11 @@ function LogbookSheet({ initialTab, initialType, onClose, onAddFill }: { initial
           </View>
         ) : (
           <>
-            <Text style={[st.odoValue, { color: odo == null ? t.absent : t.text }]}>
+            <Text allowFontScaling={false} style={[st.odoValue, { color: odo == null ? t.absent : t.text }]}>
               {odo == null ? 'NOT SET' : `≈ ${Math.round(odo).toLocaleString()} mi`}
             </Text>
             <Press onPress={() => setOdoEdit(numEdit(odo != null ? Math.round(odo) : null, 0))} style={[st.smallBtn, { borderColor: t.accent }]}>
-              <Text style={[st.smallBtnText, { color: t.accent }]}>{odo == null ? 'SET' : 'UPDATE'}</Text>
+              <Text allowFontScaling={false} style={[st.smallBtnText, { color: t.accent }]}>{odo == null ? 'SET' : 'UPDATE'}</Text>
             </Press>
           </>
         )}
@@ -297,43 +297,43 @@ function ServiceTab({ t, lb, onLog }: { t: Theme; lb: Logbook; onLog: (types: st
   return (
     <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ gap: 16 }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Text style={[ls.hint, { color: t.textFaint, flex: 1 }]}>Tap an item to log it. Old service counts too — set its date with the arrows.</Text>
+        <Text allowFontScaling={false} style={[ls.hint, { color: t.textFaint, flex: 1 }]}>Tap an item to log it. Old service counts too — set its date with the arrows.</Text>
         <Press onPress={() => onLog([])} style={[st.smallBtn, { borderColor: t.accent }]}>
-          <Text style={[st.smallBtnText, { color: t.accent }]}>+ LOG SERVICE</Text>
+          <Text allowFontScaling={false} style={[st.smallBtnText, { color: t.accent }]}>+ LOG SERVICE</Text>
         </Press>
       </View>
       <View style={st.grid}>
         {status.map((r) => (
           <Press key={r.type.id} onPress={() => onLog([r.type.id])} style={[st.statusCard, { borderColor: r.state === 'due' ? t.warn : t.panelBorder, backgroundColor: t.panel }]}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={[st.statusName, { color: t.text }]}>{r.type.label}</Text>
-              <Text style={[st.chip, { color: color(r.state), borderColor: color(r.state) }]}>{STATE_TEXT[r.state]}</Text>
+              <Text allowFontScaling={false} style={[st.statusName, { color: t.text }]}>{r.type.label}</Text>
+              <Text allowFontScaling={false} style={[st.chip, { color: color(r.state), borderColor: color(r.state) }]}>{STATE_TEXT[r.state]}</Text>
             </View>
-            <Text style={[st.statusDue, { color: r.state === 'due' ? t.warn : t.textDim }]}>{dueText(r)}</Text>
-            <Text style={[st.statusLast, { color: t.textFaint }]}>
+            <Text allowFontScaling={false} style={[st.statusDue, { color: r.state === 'due' ? t.warn : t.textDim }]}>{dueText(r)}</Text>
+            <Text allowFontScaling={false} style={[st.statusLast, { color: t.textFaint }]}>
               {r.last ? `LAST ${fmtDate(r.last.at)}${r.last.odometer != null ? ` · ${r.last.odometer.toLocaleString()} mi` : ''}` : 'NEVER LOGGED'}
             </Text>
           </Press>
         ))}
       </View>
-      <Text style={[ls.label, { color: t.textFaint, marginTop: 6 }]}>HISTORY</Text>
+      <Text allowFontScaling={false} style={[ls.label, { color: t.textFaint, marginTop: 6 }]}>HISTORY</Text>
       {lb.service.length === 0 ? (
-        <Text style={[ls.hint, { color: t.absent }]}>— nothing logged yet</Text>
+        <Text allowFontScaling={false} style={[ls.hint, { color: t.absent }]}>— nothing logged yet</Text>
       ) : (
         [...lb.service].reverse().map((e) => (
           <View key={e.id} style={[st.histRow, { borderColor: t.hairline }]}>
-            <Text style={[st.histDate, { color: t.textDim }]}>{fmtDate(e.at)}</Text>
-            <Text style={[st.histOdo, { color: t.textDim }]}>{e.odometer != null ? `${e.odometer.toLocaleString()} mi` : '—'}</Text>
-            <Text style={[st.histWhat, { color: t.text }]} numberOfLines={2}>
+            <Text allowFontScaling={false} style={[st.histDate, { color: t.textDim }]}>{fmtDate(e.at)}</Text>
+            <Text allowFontScaling={false} style={[st.histOdo, { color: t.textDim }]}>{e.odometer != null ? `${e.odometer.toLocaleString()} mi` : '—'}</Text>
+            <Text allowFontScaling={false} style={[st.histWhat, { color: t.text }]} numberOfLines={2}>
               {e.types.map((id) => SERVICE_TYPES.find((x) => x.id === id)?.label ?? id).join(' · ')}
-              {e.note ? <Text style={{ color: t.textFaint }}>{`  — ${e.note}`}</Text> : null}
+              {e.note ? <Text allowFontScaling={false} style={{ color: t.textFaint }}>{`  — ${e.note}`}</Text> : null}
             </Text>
-            <Text style={[st.histCost, { color: t.textDim }]}>{e.cost != null ? `$${e.cost.toFixed(0)}` : ''}</Text>
+            <Text allowFontScaling={false} style={[st.histCost, { color: t.textDim }]}>{e.cost != null ? `$${e.cost.toFixed(0)}` : ''}</Text>
             <Press
               onPress={() => (confirm === e.id ? (logbookStore.deleteService(e.id), setConfirm(null)) : setConfirm(e.id))}
               style={[st.del, { borderColor: confirm === e.id ? t.warn : t.panelBorder }]}
             >
-              <Text style={[st.delText, { color: confirm === e.id ? t.warn : t.textFaint }]}>{confirm === e.id ? 'DELETE?' : '✕'}</Text>
+              <Text allowFontScaling={false} style={[st.delText, { color: confirm === e.id ? t.warn : t.textFaint }]}>{confirm === e.id ? 'DELETE?' : '✕'}</Text>
             </Press>
           </View>
         ))
@@ -362,7 +362,7 @@ function ServiceForm({ t, lb, initialTypes, onDone }: { t: Theme; lb: Logbook; i
   return (
     <View style={{ flexDirection: 'row', gap: 28, flexShrink: 1 }}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 14 }}>
-        <Text style={[ls.label, { color: t.textFaint }]}>WHAT WAS DONE</Text>
+        <Text allowFontScaling={false} style={[ls.label, { color: t.textFaint }]}>WHAT WAS DONE</Text>
         <View style={st.types}>
           {SERVICE_TYPES.map((ty) => {
             const on = types.includes(ty.id);
@@ -372,12 +372,12 @@ function ServiceForm({ t, lb, initialTypes, onDone }: { t: Theme; lb: Logbook; i
                 onPress={() => setTypes((cur) => (on ? cur.filter((x) => x !== ty.id) : [...cur, ty.id]))}
                 style={[st.typeChip, { borderColor: on ? t.accent : t.panelBorder, backgroundColor: on ? t.panel : 'transparent' }]}
               >
-                <Text style={[st.typeText, { color: on ? t.accent : t.textDim }]}>{ty.label}</Text>
+                <Text allowFontScaling={false} style={[st.typeText, { color: on ? t.accent : t.textDim }]}>{ty.label}</Text>
               </Press>
             );
           })}
         </View>
-        <Text style={[ls.label, { color: t.textFaint }]}>WHEN</Text>
+        <Text allowFontScaling={false} style={[ls.label, { color: t.textFaint }]}>WHEN</Text>
         <DateSteps t={t} at={at} onChange={setAt} />
         <View style={{ flexDirection: 'row', gap: 14 }}>
           <View style={{ flex: 1.3 }}>
@@ -397,6 +397,7 @@ function ServiceForm({ t, lb, initialTypes, onDone }: { t: Theme; lb: Logbook; i
           </View>
         </View>
         <TextInput
+          allowFontScaling={false}
           value={note}
           onChangeText={setNote}
           placeholder="Note (shop, parts, oil brand…) — optional"
@@ -405,10 +406,10 @@ function ServiceForm({ t, lb, initialTypes, onDone }: { t: Theme; lb: Logbook; i
         />
         <View style={{ flexDirection: 'row', gap: 12 }}>
           <Press onPress={save} disabled={!types.length} style={[ls.big, { flex: 2, borderColor: t.accent, opacity: types.length ? 1 : 0.4 }]}>
-            <Text style={[ls.bigText, { color: t.accent }]}>SAVE SERVICE</Text>
+            <Text allowFontScaling={false} style={[ls.bigText, { color: t.accent }]}>SAVE SERVICE</Text>
           </Press>
           <Press onPress={onDone} style={[ls.big, { flex: 1, borderColor: t.panelBorder }]}>
-            <Text style={[ls.bigText, { color: t.textDim }]}>CANCEL</Text>
+            <Text allowFontScaling={false} style={[ls.bigText, { color: t.textDim }]}>CANCEL</Text>
           </Press>
         </View>
       </ScrollView>
@@ -429,8 +430,8 @@ function FuelTab({ t, lb, onAddFill }: { t: Theme; lb: Logbook; onAddFill: () =>
   const [confirm, setConfirm] = useState<string | null>(null);
   const money = (label: string, v: string | null) => (
     <View style={st.spend}>
-      <Text style={[st.spendVal, { color: v ? t.text : t.absent }]}>{v ?? '—'}</Text>
-      <Text style={[ls.label, { color: t.textFaint }]}>{label}</Text>
+      <Text allowFontScaling={false} style={[st.spendVal, { color: v ? t.text : t.absent }]}>{v ?? '—'}</Text>
+      <Text allowFontScaling={false} style={[ls.label, { color: t.textFaint }]}>{label}</Text>
     </View>
   );
   return (
@@ -444,36 +445,36 @@ function FuelTab({ t, lb, onAddFill }: { t: Theme; lb: Logbook; onAddFill: () =>
         {money(honest.length ? 'PUMP MPG' : 'EST MPG', sp.mpg != null ? sp.mpg.toFixed(1) : null)}
       </View>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 20 }}>
-        <Text style={[ls.hint, { color: t.textDim, flex: 1 }]}>
+        <Text allowFontScaling={false} style={[ls.hint, { color: t.textDim, flex: 1 }]}>
           {left ? `TANK ≈ ${left.gallons.toFixed(1)} gal (${Math.round(left.pct)}%)` : 'TANK — log a fill-up to start'}
           {lb.calib != null ? `   ·   PUMP CALIBRATION ×${lb.calib.toFixed(2)} (${lb.calibSamples.length} fill${lb.calibSamples.length === 1 ? '' : 's'})` : '   ·   two FULL fills with pump gallons calibrate the estimate'}
           {honest.length ? `   ·   PUMP MPG ${honest[0].mpg.toFixed(1)}` : ''}
         </Text>
         <Press onPress={onAddFill} style={[st.smallBtn, { borderColor: t.accent }]}>
-          <Text style={[st.smallBtnText, { color: t.accent }]}>+ ADD FILL-UP</Text>
+          <Text allowFontScaling={false} style={[st.smallBtnText, { color: t.accent }]}>+ ADD FILL-UP</Text>
         </Press>
       </View>
       {lb.fills.length === 0 ? (
-        <Text style={[ls.hint, { color: t.absent }]}>— no fill-ups yet</Text>
+        <Text allowFontScaling={false} style={[ls.hint, { color: t.absent }]}>— no fill-ups yet</Text>
       ) : (
         [...lb.fills].reverse().map((f) => {
           const mpg = honest.find((h) => h.at === f.at)?.mpg;
           return (
             <View key={f.id} style={[st.histRow, { borderColor: t.hairline }]}>
-              <Text style={[st.histDate, { color: t.textDim }]}>{fmtDate(f.at)}</Text>
-              <Text style={[st.histOdo, { color: t.text }]}>{f.gallons != null ? `${f.gallons.toFixed(2)} gal` : 'gal —'}</Text>
-              <Text style={[st.histWhat, { color: t.textDim }]}>
+              <Text allowFontScaling={false} style={[st.histDate, { color: t.textDim }]}>{fmtDate(f.at)}</Text>
+              <Text allowFontScaling={false} style={[st.histOdo, { color: t.text }]}>{f.gallons != null ? `${f.gallons.toFixed(2)} gal` : 'gal —'}</Text>
+              <Text allowFontScaling={false} style={[st.histWhat, { color: t.textDim }]}>
                 {f.full ? 'FULL' : 'PARTIAL'}
                 {f.pricePerGal != null ? `  ·  $${f.pricePerGal.toFixed(2)}/gal` : ''}
                 {fillCost(f) != null ? `  ·  $${fillCost(f)!.toFixed(2)}` : ''}
                 {f.miles > 0 ? `  ·  ${Math.round(f.miles)} mi since last` : ''}
               </Text>
-              <Text style={[st.histCost, { color: mpg != null ? t.eco : t.textFaint }]}>{mpg != null ? `${mpg.toFixed(1)} mpg` : ''}</Text>
+              <Text allowFontScaling={false} style={[st.histCost, { color: mpg != null ? t.eco : t.textFaint }]}>{mpg != null ? `${mpg.toFixed(1)} mpg` : ''}</Text>
               <Press
                 onPress={() => (confirm === f.id ? (logbookStore.deleteFill(f.id), setConfirm(null)) : setConfirm(f.id))}
                 style={[st.del, { borderColor: confirm === f.id ? t.warn : t.panelBorder }]}
               >
-                <Text style={[st.delText, { color: confirm === f.id ? t.warn : t.textFaint }]}>{confirm === f.id ? 'DELETE?' : '✕'}</Text>
+                <Text allowFontScaling={false} style={[st.delText, { color: confirm === f.id ? t.warn : t.textFaint }]}>{confirm === f.id ? 'DELETE?' : '✕'}</Text>
               </Press>
             </View>
           );

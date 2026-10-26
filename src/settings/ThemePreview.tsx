@@ -28,16 +28,16 @@ function Sample({ title }: { title: string }) {
   const ratio = (c: string) => contrastRatio(c, t.bg).toFixed(1);
   return (
     <View style={[styles.panel, { backgroundColor: t.bg, borderColor: t.panelBorder }]}>
-      <Text style={[styles.title, { color: t.textFaint }]}>{title}</Text>
+      <Text allowFontScaling={false} style={[styles.title, { color: t.textFaint }]}>{title}</Text>
       <PulseTach size={300} />
       <View style={styles.stats}>
         <Stat value="196" unit="°F" label="COOLANT" color={t.accent} />
         <Stat value="+12.4" unit="%" label="GRADE" color={t.warn} />
       </View>
       <View style={[styles.tile, { borderColor: t.panelBorder, backgroundColor: t.panel }]}>
-        <Text style={[styles.tileText, { color: t.textDim }]}>WAZE</Text>
+        <Text allowFontScaling={false} style={[styles.tileText, { color: t.textDim }]}>WAZE</Text>
       </View>
-      <Text style={[styles.ratio, { color: t.textDim }]}>
+      <Text allowFontScaling={false} style={[styles.ratio, { color: t.textDim }]}>
         accent {ratio(t.accent)}:1 · text {ratio(t.text)}:1 · warn {ratio(t.warn)}:1
       </Text>
     </View>
@@ -48,11 +48,11 @@ function Stat({ value, unit, label, color }: { value: string; unit: string; labe
   const t = useTheme();
   return (
     <View>
-      <Text style={[styles.value, { color }]}>
+      <Text allowFontScaling={false} style={[styles.value, { color }]}>
         {value}
-        <Text style={{ fontSize: 19, color: t.textDim }}> {unit}</Text>
+        <Text allowFontScaling={false} style={{ fontSize: 19, color: t.textDim }}> {unit}</Text>
       </Text>
-      <Text style={[styles.label, { color: t.textFaint }]}>{label}</Text>
+      <Text allowFontScaling={false} style={[styles.label, { color: t.textFaint }]}>{label}</Text>
     </View>
   );
 }

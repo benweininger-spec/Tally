@@ -73,6 +73,23 @@ export async function loadObdMac(): Promise<string | null> {
   }
 }
 
+const KEY_OBD_PROTO = 'tacoma-dash:obdProtocol';
+/** the bus protocol the ELM settled on last time (ATDPN digit, e.g. "6") */
+export async function loadObdProtocol(): Promise<string | null> {
+  try {
+    return await AsyncStorage.getItem(KEY_OBD_PROTO);
+  } catch {
+    return null;
+  }
+}
+export async function saveObdProtocol(p: string): Promise<void> {
+  try {
+    await AsyncStorage.setItem(KEY_OBD_PROTO, p);
+  } catch {
+    /* non-fatal */
+  }
+}
+
 export async function saveObdMac(mac: string): Promise<void> {
   try {
     await AsyncStorage.setItem(KEY_OBD_MAC, mac);

@@ -61,10 +61,10 @@ const Instant = React.memo(function Instant() {
   const v = useTelemetry((d) => (has(d.obd.instantMpg) ? Math.round(d.obd.instantMpg.value) : null));
   return (
     <View>
-      <Text style={[s.k, { color: v == null ? t.absent : t.textFaint }]}>INSTANT</Text>
-      <Text style={[s.big, { color: v == null ? t.absent : economyColor(t, v) }]}>
+      <Text allowFontScaling={false} style={[s.k, { color: v == null ? t.absent : t.textFaint }]}>INSTANT</Text>
+      <Text allowFontScaling={false} style={[s.big, { color: v == null ? t.absent : economyColor(t, v) }]}>
         {v == null ? '—' : v}
-        {v != null && <Text style={[s.unit, { color: t.textDim }]}> mpg</Text>}
+        {v != null && <Text allowFontScaling={false} style={[s.unit, { color: t.textDim }]}> mpg</Text>}
       </Text>
     </View>
   );
@@ -100,7 +100,7 @@ function Ridgeline({ series }: { series: string }) {
   if (!geom) {
     return (
       <View style={[s.ridgeEmpty, { borderColor: t.hairline }]}>
-        <Text style={[s.k, { color: t.absent }]}>NO SCORED DAYS YET · NEEDS OBD WHILE DRIVING</Text>
+        <Text allowFontScaling={false} style={[s.k, { color: t.absent }]}>NO SCORED DAYS YET · NEEDS OBD WHILE DRIVING</Text>
       </View>
     );
   }
@@ -126,8 +126,8 @@ function Ridgeline({ series }: { series: string }) {
         )}
       </Svg>
       <View style={s.ridgeAxis}>
-        <Text style={[s.k, { color: t.textFaint }]}>30 DAYS · {geom.lo.toFixed(0)}–{geom.hi.toFixed(0)} MPG</Text>
-        <Text style={[s.k, { color: t.textFaint }]}>TODAY</Text>
+        <Text allowFontScaling={false} style={[s.k, { color: t.textFaint }]}>30 DAYS · {geom.lo.toFixed(0)}–{geom.hi.toFixed(0)} MPG</Text>
+        <Text allowFontScaling={false} style={[s.k, { color: t.textFaint }]}>TODAY</Text>
       </View>
     </View>
   );
@@ -140,10 +140,10 @@ export const MpgCard = React.memo(function MpgCard() {
   const trip = sum.trip || sessionAvg;
   const stat = (label: string, v: string) => (
     <View>
-      <Text style={[s.k, { color: v ? t.textFaint : t.absent }]}>{label}</Text>
-      <Text style={[s.mid, { color: v ? t.text : t.absent }]}>
+      <Text allowFontScaling={false} style={[s.k, { color: v ? t.textFaint : t.absent }]}>{label}</Text>
+      <Text allowFontScaling={false} style={[s.mid, { color: v ? t.text : t.absent }]}>
         {v || '—'}
-        {v ? <Text style={[s.unitSm, { color: t.textDim }]}> mpg</Text> : null}
+        {v ? <Text allowFontScaling={false} style={[s.unitSm, { color: t.textDim }]}> mpg</Text> : null}
       </Text>
     </View>
   );
@@ -159,23 +159,23 @@ export const MpgCard = React.memo(function MpgCard() {
       </View>
       <Ridgeline series={sum.series} />
       <View style={s.bw}>
-        <Text style={[s.k, { color: t.textFaint }]}>
-          BEST <Text style={{ color: bv ? t.text : t.absent }}>{bv ? `${bd} · ${bv}` : '—'}</Text>
+        <Text allowFontScaling={false} style={[s.k, { color: t.textFaint }]}>
+          BEST <Text allowFontScaling={false} style={{ color: bv ? t.text : t.absent }}>{bv ? `${bd} · ${bv}` : '—'}</Text>
         </Text>
-        <Text style={[s.k, { color: t.textFaint }]}>
-          WORST <Text style={{ color: wv ? t.text : t.absent }}>{wv ? `${wd} · ${wv}` : '—'}</Text>
+        <Text allowFontScaling={false} style={[s.k, { color: t.textFaint }]}>
+          WORST <Text allowFontScaling={false} style={{ color: wv ? t.text : t.absent }}>{wv ? `${wd} · ${wv}` : '—'}</Text>
         </Text>
       </View>
       <View style={[s.trips, { borderTopColor: t.hairline }]}>
-        <Text style={[s.k, { color: t.textFaint, marginBottom: 2 }]}>LAST TRIPS</Text>
+        <Text allowFontScaling={false} style={[s.k, { color: t.textFaint, marginBottom: 2 }]}>LAST TRIPS</Text>
         {trips.length === 0 ? (
-          <Text style={[s.tripRow, { color: t.absent }]}>— no completed trips yet</Text>
+          <Text allowFontScaling={false} style={[s.tripRow, { color: t.absent }]}>— no completed trips yet</Text>
         ) : (
           trips.map(([date, mi, mpg], i) => (
             <View key={i} style={s.tripLine}>
-              <Text style={[s.tripRow, { color: t.textDim, width: 110 }]}>{date}</Text>
-              <Text style={[s.tripRow, { color: t.textDim, width: 150 }]}>{mi} mi</Text>
-              <Text style={[s.tripRow, { color: mpg === '—' ? t.absent : t.text }]}>{mpg === '—' ? '— mpg' : `${mpg} mpg`}</Text>
+              <Text allowFontScaling={false} style={[s.tripRow, { color: t.textDim, width: 110 }]}>{date}</Text>
+              <Text allowFontScaling={false} style={[s.tripRow, { color: t.textDim, width: 150 }]}>{mi} mi</Text>
+              <Text allowFontScaling={false} style={[s.tripRow, { color: mpg === '—' ? t.absent : t.text }]}>{mpg === '—' ? '— mpg' : `${mpg} mpg`}</Text>
             </View>
           ))
         )}

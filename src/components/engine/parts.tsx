@@ -16,7 +16,7 @@ export function Card({ title, right, style, children }: { title?: string; right?
     <View style={[styles.card, { borderColor: t.panelBorder, backgroundColor: t.panel }, style]}>
       {(title || right) && (
         <View style={styles.cardHead}>
-          {title ? <Text style={[styles.label, { color: t.textFaint }]}>{title}</Text> : <View />}
+          {title ? <Text allowFontScaling={false} style={[styles.label, { color: t.textFaint }]}>{title}</Text> : <View />}
           {right}
         </View>
       )}
@@ -47,12 +47,12 @@ export function Tile({
   const absent = value == null;
   return (
     <View style={[styles.card, styles.tile, { borderColor: warn ? t.warn : t.panelBorder, backgroundColor: t.panel }, style]}>
-      <Text style={[styles.label, { color: absent ? t.absent : t.textFaint }]}>{label}</Text>
-      <Text style={[styles.value, { fontSize: size, lineHeight: size * 1.12, color: absent ? t.absent : warn ? t.warn : t.text }]}>
+      <Text allowFontScaling={false} style={[styles.label, { color: absent ? t.absent : t.textFaint }]}>{label}</Text>
+      <Text allowFontScaling={false} style={[styles.value, { fontSize: size, lineHeight: size * 1.12, color: absent ? t.absent : warn ? t.warn : t.text }]}>
         {absent ? '—' : value}
-        {!absent && unit ? <Text style={[styles.unit, { color: t.textDim, fontSize: Math.max(16, size * 0.4) }]}> {unit}</Text> : null}
+        {!absent && unit ? <Text allowFontScaling={false} style={[styles.unit, { color: t.textDim, fontSize: Math.max(16, size * 0.4) }]}> {unit}</Text> : null}
       </Text>
-      {caption ? <Text style={[styles.caption, { color: absent ? t.absent : t.textFaint }]}>{caption}</Text> : null}
+      {caption ? <Text allowFontScaling={false} style={[styles.caption, { color: absent ? t.absent : t.textFaint }]}>{caption}</Text> : null}
     </View>
   );
 }
@@ -65,8 +65,8 @@ export function PctBar({ label, pct }: { label: string; pct: number | null }) {
   return (
     <View style={styles.barRow}>
       <View style={styles.barHead}>
-        <Text style={[styles.label, { color: absent ? t.absent : t.textFaint }]}>{label}</Text>
-        <Text style={[styles.barValue, { color: absent ? t.absent : t.text }]}>{absent ? '—' : `${Math.round(w)}%`}</Text>
+        <Text allowFontScaling={false} style={[styles.label, { color: absent ? t.absent : t.textFaint }]}>{label}</Text>
+        <Text allowFontScaling={false} style={[styles.barValue, { color: absent ? t.absent : t.text }]}>{absent ? '—' : `${Math.round(w)}%`}</Text>
       </View>
       <View style={[styles.track, { backgroundColor: t.hairline }]}>
         <View style={[styles.fill, { width: `${w}%`, backgroundColor: t.accent }]} />
@@ -89,8 +89,8 @@ export function TrimBar({ label, pct }: { label: string; pct: number | null }) {
   return (
     <View style={[styles.card, styles.tile, { borderColor: warn ? t.warn : t.panelBorder, backgroundColor: t.panel }]}>
       <View style={styles.barHead}>
-        <Text style={[styles.label, { color: absent ? t.absent : t.textFaint }]}>{label}</Text>
-        <Text style={[styles.trimValue, { color: absent ? t.absent : warn ? t.warn : t.text }]}>
+        <Text allowFontScaling={false} style={[styles.label, { color: absent ? t.absent : t.textFaint }]}>{label}</Text>
+        <Text allowFontScaling={false} style={[styles.trimValue, { color: absent ? t.absent : warn ? t.warn : t.text }]}>
           {absent ? '—' : `${pct >= 0 ? '+' : '−'}${Math.abs(pct).toFixed(1)}%`}
         </Text>
       </View>
@@ -102,8 +102,8 @@ export function TrimBar({ label, pct }: { label: string; pct: number | null }) {
         ))}
       </View>
       <View style={styles.trimLegend}>
-        <Text style={[styles.caption, { color: t.textFaint }]}>RICH</Text>
-        <Text style={[styles.caption, { color: t.textFaint }]}>LEAN</Text>
+        <Text allowFontScaling={false} style={[styles.caption, { color: t.textFaint }]}>RICH</Text>
+        <Text allowFontScaling={false} style={[styles.caption, { color: t.textFaint }]}>LEAN</Text>
       </View>
     </View>
   );

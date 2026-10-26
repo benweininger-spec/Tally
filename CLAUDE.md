@@ -159,6 +159,17 @@ runtime. Web still runs the sim with zero hardware; live mode is native-only.
   - **Spending**: fill-ups take gallons + $/gal OR the pump TOTAL (`FillUp.total`); `spending()` →
     this month / 30 days / avg price / cost per mile (avg price ÷ pump-honest mpg, else MAF ÷ calib).
     FUEL tab header + the HOME fuel card's foot line.
+- ✅ **Truck feedback round (2026-10-26)** — gauge-cluster fuel probe ANSWERS on the truck (real
+  level, ~72 % read 15.2 gal) but swings with grade → `src/lib/fuelFilter.ts`: last 5 min, level-only
+  readings (IMU pitch/roll ≤ 4°, |g| ≤ 0.08), interquartile mean, refuel jump resets. Boot connect:
+  retry every 3 s for 2 min after launch / ignition, and the ELM init sends `ATSPA6` (last session's
+  protocol, auto-fallback) instead of searching. The dash ignores Android font scale
+  (`allowFontScaling={false}` on every Text — the SET control used to push text off the cards; it's
+  now labelled "Android text size, other screens"). RADIO: seek = MCU `ctl_radio_seek=up/down`,
+  − / + = `ctl_radio_tune` (via CarManager.setParameters, whitelisted in MtcEvents — from the
+  decompiled com.microntek.radio RadioService); the launcher session's next/prev only walks
+  FAVOURITES once any exist (also what the steering-wheel buttons drive — stock launcher's call).
+  Fallback tune = `hct.radio.bar.move` {FREQ Hz}; state from `com.microntek.radio.report`.
 - ✅ **Gear readout + park (2026-10-26)** — `src/lib/gear.ts` (verify-tested) + `src/data/gearStore.tsx`
   + `GearBadge` (P R D + gear digit in the dial's bottom gap, HOME + DRIVE). Forward gear = rpm ÷ mph
   against the AC60E ladder (3.6 / 2.09 / 1.488 / 1.0 / 0.687 / 0.58) × K (≈ 43.1, self-learning).
@@ -281,7 +292,8 @@ Data tiers (see `docs/design-brief.md` §3):
    trace wrapped by a **radial ring** that reads **speed pre-OBD and RPM (with
    redline) once the dongle connects**. The center number is **always ground speed**
    (the safety glance); no number is shown twice. **2026-10-26: the trace is the last
-   minute of RPM (speed when OBD is down)** (was longitudinal g — on the truck it read as jittery noise with no
+   minute of THROTTLE % on a fixed 0–100 scale (speed when OBD is down)** — the ring already
+   carries RPM (was longitudinal g — on the truck it read as jittery noise with no
    meaning to the driver): read from the always-on drive recorder, 1.5 s box-averaged and
    drawn as a Catmull-Rom spline (`buildTrace` in `src/lib/pulse.ts`, verify-tested: one
    new sample moves the curve < 1.5 px), scale changes eased over ~1 s.

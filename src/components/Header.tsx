@@ -22,18 +22,18 @@ export const Header = React.memo(function Header() {
 
   return (
     <View style={[styles.row, { borderBottomColor: t.hairline }]}>
-      <Text style={[styles.mono, { color: t.textFaint }]}>
-        TACOMA · SR <Text style={{ color: t.absent }}>/</Text> 2TR-FE
+      <Text allowFontScaling={false} style={[styles.mono, { color: t.textFaint }]}>
+        TACOMA · SR <Text allowFontScaling={false} style={{ color: t.absent }}>/</Text> 2TR-FE
       </Text>
       <View style={styles.right}>
-        <Text style={[styles.mono, { color: t.accent }]}>
-          {time} <Text style={{ color: t.textFaint }}>{ampm}</Text>
+        <Text allowFontScaling={false} style={[styles.mono, { color: t.accent }]}>
+          {time} <Text allowFontScaling={false} style={{ color: t.textFaint }}>{ampm}</Text>
         </Text>
-        <Text style={[styles.mono, { color: lte ? t.textDim : t.absent }]}>LTE</Text>
-        <Text style={[styles.mono, { color: wifi ? t.textDim : t.absent }]}>WI-FI</Text>
-        <Text style={[styles.mono, { color: t.accent }]}>
+        <Text allowFontScaling={false} style={[styles.mono, { color: lte ? t.textDim : t.absent }]}>LTE</Text>
+        <Text allowFontScaling={false} style={[styles.mono, { color: wifi ? t.textDim : t.absent }]}>WI-FI</Text>
+        <Text allowFontScaling={false} style={[styles.mono, { color: t.accent }]}>
           {v}
-          <Text style={{ color: t.textFaint, fontSize: 17 }}>V</Text>
+          <Text allowFontScaling={false} style={{ color: t.textFaint, fontSize: 17 }}>V</Text>
         </Text>
       </View>
     </View>

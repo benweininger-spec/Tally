@@ -68,13 +68,13 @@ export const VehiclePanel = React.memo(function VehiclePanel() {
   const connected = d.connected;
   return (
     <View style={[styles.card, { borderColor: t.panelBorder, backgroundColor: t.panel }]}>
-      <Text style={[styles.title, { color: t.textFaint }]}>VEHICLE</Text>
+      <Text allowFontScaling={false} style={[styles.title, { color: t.textFaint }]}>VEHICLE</Text>
       <View style={styles.grid}>
         {stats.map((s, i) => (
           <Cell key={s.label} s={s} t={t} reveal={edge.reveal} delay={i * STAGGER_MS} />
         ))}
       </View>
-      <Text style={[styles.footer, { color: connected ? t.textDim : t.textFaint }]}>
+      <Text allowFontScaling={false} style={[styles.footer, { color: connected ? t.textDim : t.textFaint }]}>
         {connected ? 'OBD2 · LIVE' : 'OBD2 · DONGLE AWAITING — GPS + SENSORS ACTIVE'}
       </Text>
     </View>
@@ -95,11 +95,11 @@ function Cell({ s, t, reveal, delay }: { s: Stat; t: Theme; reveal: number; dela
   }, [reveal, delay, op]);
   return (
     <Animated.View style={[styles.cell, { opacity: op }]}>
-      <Text style={[styles.value, { color: t.accent }]}>
+      <Text allowFontScaling={false} style={[styles.value, { color: t.accent }]}>
         {s.value}
-        {s.unit ? <Text style={{ fontSize: 18, color: t.textDim }}> {s.unit}</Text> : null}
+        {s.unit ? <Text allowFontScaling={false} style={{ fontSize: 18, color: t.textDim }}> {s.unit}</Text> : null}
       </Text>
-      <Text style={[styles.label, { color: t.textFaint }]}>{s.label}</Text>
+      <Text allowFontScaling={false} style={[styles.label, { color: t.textFaint }]}>{s.label}</Text>
     </Animated.View>
   );
 }

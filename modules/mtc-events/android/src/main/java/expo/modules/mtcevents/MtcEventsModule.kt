@@ -41,6 +41,21 @@ class MtcEventsModule : Module() {
       "com.microntek.carstatechange",
       "com.microntek.sync",
       "com.microntek.canbusdisplay",
+      // the factory radio service's own state report (freq / min / max / step) — see radioCommand
+      "com.microntek.radio.report",
+    )
+    /**
+     * MCU radio commands, from the decompiled com.microntek.radio RadioService (its IRadioService
+     * sSearchNext/Prev + sTuneRight/Left call CarManager.setParameters with exactly these). The
+     * stock launcher's media session only exposes "next/previous" = next FAVOURITE once any
+     * favourite exists, which is why seek used to get stuck on one station (2026-10-26).
+     * Whitelisted: nothing else can reach setParameters from JS.
+     */
+    private val RADIO_CMDS = mapOf(
+      "seek_up" to "ctl_radio_seek=up",
+      "seek_down" to "ctl_radio_seek=down",
+      "tune_up" to "ctl_radio_tune=up",
+      "tune_down" to "ctl_radio_tune=down",
     )
   }
 
@@ -134,6 +149,33 @@ class MtcEventsModule : Module() {
     Events(EVENT)
 
     Function("last") { action: String -> last[action] }
+
+    /** Seek / tune the FM tuner directly on the MCU. false = CarManager unavailable. */
+    Function("radioCommand") { cmd: String ->
+      val para = RADIO_CMDS[cmd] ?: return@Function false
+      if (carManager == null) attachCarManager()
+      val cm = carManager ?: return@Function false
+      try {
+        cm.javaClass.getMethod("setParameters", String::class.java).invoke(cm, para)
+        Log.i(TAG, "radio $para")
+        true
+      } catch (e: Throwable) {
+        Log.w(TAG, "radio $para failed: $e")
+        false
+      }
+    }
+
+    /** Tune to an exact frequency (Hz) through the radio service's own exported receiver. */
+    Function("radioSetFreq") { hz: Int ->
+      context.sendBroadcast(Intent("hct.radio.bar.move").putExtra("FREQ", hz))
+      true
+    }
+
+    /** Ask the radio service to broadcast its state (com.microntek.radio.report type=content). */
+    Function("radioRequestState") {
+      context.sendBroadcast(Intent("hct.radio.request.data"))
+      true
+    }
 
     OnStartObserving {
       if (receiver != null) return@OnStartObserving

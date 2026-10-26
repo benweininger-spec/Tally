@@ -94,8 +94,12 @@ import {
   OBD_RETRY_STEPS_MS,
   obdRetryDelayMs,
   pickObdAdapter,
+  protocolHint,
   rankObdDevices,
+  OBD_RETRY_BOOT_MS,
+  OBD_BOOT_WINDOW_MS,
 } from '../src/lib/obdLink.ts';
+import { FUEL_WINDOW_MS, REFUEL_JUMP_L, addFuelSample, createFuelFilter, filteredLitres, iqm, isLevel } from '../src/lib/fuelFilter.ts';
 import {
   addDelta,
   bestWorstDay,
@@ -833,6 +837,29 @@ console.log('\nGEAR + PARK (src/lib/gear.ts)');
   const q = createGearState();
   gearStep(q, { now: 0, mph: 0, rpm: null, reverse: null });
   ok(!summaryPromptDue(q, STOP_PROMPT_MS - 1) && summaryPromptDue(q, STOP_PROMPT_MS + 1), 'no park clues → a 1-min stop still offers the summary');
+}
+
+console.log('\nFUEL LEVEL SLOSH FILTER + BOOT CONNECT (src/lib/fuelFilter.ts, obdLink.ts)');
+{
+  ok(iqm([1, 2, 3, 4, 100, -50, 3, 2]) === 2.5 && iqm([7]) === 7 && iqm([]) === null, 'interquartile mean drops the peaks');
+  ok(isLevel(1, -2, 0.02) && !isLevel(6, 0, 0) && !isLevel(0, 5, 0) && !isLevel(0, 0, 0.2) && isLevel(null, null, null), 'level = |pitch|,|roll| ≤ 4°, |g| ≤ 0.08 (no IMU → trusted)');
+  // 5 min at ~57 L, a hill makes the float swing ±6 L on tilted samples
+  const f = createFuelFilter();
+  let t = 0;
+  for (let i = 0; i < 40; i++, t += 8000) {
+    const tilted = i % 3 === 0;
+    addFuelSample(f, { at: t, litres: tilted ? 57 + (i % 2 ? 6 : -6) : 57 + ((i % 5) - 2) * 0.2, level: !tilted, stopped: false });
+  }
+  const v = filteredLitres(f, t)!;
+  ok(Math.abs(v - 57) < 0.3, `grade swings ignored: ${v.toFixed(2)} L (raw ±6 L)`);
+  ok(f.samples.every((x) => t - 8000 - x.at <= FUEL_WINDOW_MS), 'keeps only the last 5 minutes');
+  addFuelSample(f, { at: t, litres: 57 + REFUEL_JUMP_L + 15, level: true, stopped: true });
+  ok(f.samples.length === 1 && Math.abs(filteredLitres(f, t)! - (57 + REFUEL_JUMP_L + 15)) < 1e-9, 'a big rise while parked = filled up → follows at once');
+  const g = createFuelFilter();
+  addFuelSample(g, { at: 0, litres: 40, level: false, stopped: false });
+  ok(filteredLitres(g, 0) === 40, 'no level readings yet → uses what it has (never blank)');
+  ok(protocolHint('A6') === '6' && protocolHint('6') === '6' && protocolHint('AC') === 'C' && protocolHint('?') === null && protocolHint(null) === null, 'ATDPN "A6" → try protocol 6 first next time');
+  ok(obdRetryDelayMs(5, 60_000, 30_000) === OBD_RETRY_BOOT_MS && obdRetryDelayMs(5, 60_000, OBD_BOOT_WINDOW_MS + 1) === OBD_RETRY_STEADY_MS, 'first 2 min after launch / ignition: retry every 3 s, no back-off');
 }
 
 console.log('\nOBD AUTO-CONNECT (src/lib/obdLink.ts)');
