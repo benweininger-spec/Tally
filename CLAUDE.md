@@ -233,6 +233,11 @@ source is missing — never an empty gauge. Full write-up: `docs/ARCHITECTURE.md
   no bytes back = stale socket — counted per command, not wall time, because JS freezes
   while another app is in front) so the source redials. The background loop never shows a permission
   prompt. Untested on the truck.
+- **Stuck-dial fix (2026-10-27):** a Bluetooth connect that hangs (dongle asleep / unit sleeping
+  mid-dial) stayed in react-native-bluetooth-classic's `mConnecting` map forever → every retry was
+  refused "Already attempting connection" and OBD never came back that trip (seen on the truck;
+  an app restart cleared it). `scripts/patch-rnbc.js` (postinstall, idempotent) cancels a pending
+  dial older than 20 s; the transport also times out its connect at 20 s.
 - **Voltage:** live `system.voltage` = OBD PID 42 when the dongle has it, else the head
   unit's own 12V input via `android.microntek.CarManager` ("battery", tenths of a volt —
   `src/data/live/mtcProvider.ts`, `modules/mtc-events`). The old "no Android API" belief

@@ -42,7 +42,9 @@ cd "$PROJ" || die "Project not found: $PROJ"
 # --- 1. build ----------------------------------------------------------------
 if [ "$BUILD" = "1" ]; then
   bar "Building release APK (this takes a few minutes)"
-  ( cd "$PROJ/android" && ./gradlew assembleRelease --console=plain ) || die "Gradle build failed (see output above)."
+  # arm64 only: the head unit is a Snapdragon 665 — 45 MB instead of 129 MB, which matters
+  # over the truck's slow Wi-Fi (a full-size install dropped mid-transfer, 2026-10-27)
+  ( cd "$PROJ/android" && ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a --console=plain ) || die "Gradle build failed (see output above)."
 else
   bar "Skipping build (--install-only)"
 fi

@@ -13,7 +13,8 @@
     "media:enable": "rm -rf modules/media-bridge && mkdir -p modules && cp -R native/media-bridge modules/media-bridge && echo 'Tier B staged in modules/. Now: npx expo prebuild --clean && npx expo run:android'",
     "media:disable": "rm -rf modules/media-bridge && echo 'Tier B module removed from modules/.'",
     "verify": "node --experimental-strip-types scripts/verify.ts",
-    "contrast": "node --experimental-strip-types scripts/contrast.ts"
+    "contrast": "node --experimental-strip-types scripts/contrast.ts",
+    "postinstall": "node scripts/patch-rnbc.js"
   },
   "dependencies": {
     "@expo-google-fonts/jetbrains-mono": "^0.4.1",

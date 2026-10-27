@@ -37,6 +37,24 @@ export async function requestBluetoothPermissions(): Promise<boolean> {
   return Object.values(res).every((v) => v === PermissionsAndroid.RESULTS.GRANTED);
 }
 
+const CONNECT_TIMEOUT_MS = 20_000;
+
+function withTimeout<T>(p: Promise<T>, ms: number, msg: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const id = setTimeout(() => reject(new Error(msg)), ms);
+    p.then(
+      (v) => {
+        clearTimeout(id);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(id);
+        reject(e);
+      }
+    );
+  });
+}
+
 /** Silent check (no dialog) — the auto-connect loop must never pop a permission prompt. */
 export async function hasBluetoothPermission(): Promise<boolean> {
   if (Platform.OS !== 'android') return true;
@@ -95,11 +113,18 @@ export class ClassicSppTransport implements ObdTransport {
       // response (all lines since the last prompt, e.g. "SEARCHING...\r41 0C 1A F8").
       // We append '\r' on write; responses never contain '>', so this is safe and
       // lets ObdManager resolve a command on a single frame.
-      this.device = await bt().connectToDevice(address, {
-        delimiter: '>',
-        charset: 'ascii',
-        CONNECTOR_TYPE: 'rfcomm',
-      });
+      // Bounded: a dial to a sleeping dongle can hang inside the BT stack. Give up after
+      // CONNECT_TIMEOUT_MS so the auto-connect loop retries (the patched library also cancels
+      // a pending dial older than 20 s — scripts/patch-rnbc.js).
+      this.device = await withTimeout(
+        bt().connectToDevice(address, {
+          delimiter: '>',
+          charset: 'ascii',
+          CONNECTOR_TYPE: 'rfcomm',
+        }),
+        CONNECT_TIMEOUT_MS,
+        'OBD adapter did not answer the Bluetooth connect'
+      );
       this.deviceName = this.device?.name || null;
 
       this.dataSub = this.device.onDataReceived((ev: any) => {
