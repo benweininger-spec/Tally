@@ -54,6 +54,7 @@ export interface MotionData {
 }
 
 export interface TripData {
+  /** GPS odometer + OBD-speed miles through GPS gaps (live), so the MPG log never sees fuel with no miles */
   distanceMi: Signal<number>;
   movingTimeSec: Signal<number>;
   avgSpeedMph: Signal<number>;

@@ -13,16 +13,20 @@
 /**
  * Single-constant MPG form: MPG = k · speed(mph) / MAF(g/s).
  *
- * Derived from first principles for gasoline (do NOT use the often-quoted "710.7"
- * — that constant is for different units and yields absurd MPG with MAF in g/s):
- *   fuel mass rate = MAF / AFR              (AFR 14.7)
- *   gal/hr = MAF·3600 / (AFR · 6.17 lb/gal · 453.592 g/lb)
- *          = MAF·3600 / 41140.3 = MAF · 0.087506
- *   MPG    = mph / (gal/hr) = (1/0.087506)·mph/MAF = 11.428 · mph/MAF
+ * Derived from first principles for US pump gas, which is E10 (do NOT use the
+ * often-quoted "710.7" — that constant is for different units and yields absurd MPG
+ * with MAF in g/s):
+ *   fuel mass rate = MAF / AFR              (E10 stoichiometric AFR 14.08)
+ *   gal/hr = MAF·3600 / (AFR · 6.20 lb/gal · 453.592 g/lb)
+ *          = MAF·3600 / 39596.7 = MAF · 0.09091
+ *   MPG    = mph / (gal/hr) = (1/0.09091)·mph/MAF = 11.00 · mph/MAF
+ * Ethanol-free (E0: AFR 14.7, 6.17 lb/gal) works out to k = 11.428 — pass that as `k`
+ * if the tank only ever sees E0. The pump calibration (`calib` in src/lib/logbook.ts)
+ * is the logbook's own correction and is deliberately NOT folded in here.
  * Returns null at/near idle, where instantaneous MPG is undefined (∞) — callers
  * should show fuel burn (GPH) instead, or blank the number.
  */
-export const MPG_MAF_CONSTANT = 11.428;
+export const MPG_MAF_CONSTANT = 11.0;
 export function instantMpg(mafGps: number, speedMph: number, k = MPG_MAF_CONSTANT): number | null {
   if (!Number.isFinite(mafGps) || mafGps <= 0) return null;
   if (!Number.isFinite(speedMph) || speedMph < 1) return null; // undefined at idle
@@ -34,13 +38,82 @@ export function gallonsPerHour(mafGps: number, k = MPG_MAF_CONSTANT): number {
   // GPH = speed / MPG = speed / (k·speed/MAF) = MAF / k  (mph cancels) — i.e. 1 mph drives k/MAF mpg.
   // Equivalent direct form: GPH = MAF(g/s)·3600 / (AFR·gasDensity_g_per_gal).
   if (!Number.isFinite(mafGps) || mafGps < 0) return 0;
-  return mafGps / k; // gal/hr = MAF·0.0875; inverse of the MPG constant (mph/GPH = MPG)
+  return mafGps / k; // gal/hr = MAF·0.0909; inverse of the MPG constant (mph/GPH = MPG)
+}
+
+/**
+ * Deceleration fuel cut-off (DFCO): with the pedal released above idle while rolling,
+ * the 2TR-FE's ECU shuts the injectors off, but the MAF still reads the air pumped
+ * through — integrating it would charge fuel that was never burned.
+ *
+ * `throttlePct` is measured from the CLOSED position. Toyota's PID 11 is absolute and
+ * reads ~17 % with the pedal up on this truck (FACT, docs/DEVICE-MICRONTEK.md), so the
+ * caller passes the learned closed position as `closedPct` (see learnClosedThrottle);
+ * the default 0 suits a sensor that reads ~0 when closed.
+ */
+export const DFCO_THROTTLE_PCT = 1.5; // closed pedal, with sensor offset
+export const DFCO_MIN_RPM = 1200; // ECU resumes injection near idle
+export const DFCO_MIN_MPH = 8; // rolling, not a stall / creep
+/** true when the ECU is (almost certainly) in deceleration fuel cut-off */
+export function isFuelCut(throttlePct: number | null, rpm: number | null, speedMph: number, closedPct = 0): boolean {
+  if (throttlePct == null || rpm == null || !Number.isFinite(throttlePct) || !Number.isFinite(rpm)) return false;
+  if (!Number.isFinite(speedMph)) return false;
+  return throttlePct - closedPct <= DFCO_THROTTLE_PCT && rpm >= DFCO_MIN_RPM && speedMph >= DFCO_MIN_MPH;
+}
+
+/** warm idle — fast idle on a cold engine opens the throttle further, so it never teaches */
+export const CLOSED_LEARN_MAX_RPM = 1000;
+/** a closed reading above this is a fault / a pedal resting on the floor mat, not "closed" */
+export const CLOSED_MAX_PCT = 30;
+/**
+ * The throttle's closed position, learned as the lowest reading at a warm idle
+ * (stopped, 400–1000 rpm). Only ever moves down, so a stray low reading can only make
+ * isFuelCut stricter (fewer cuts = the old, pessimistic gallons) — never looser.
+ * Returns `prev` unchanged when this reading can't teach anything.
+ */
+export function learnClosedThrottle(
+  prev: number | null,
+  throttlePct: number | null,
+  rpm: number | null,
+  speedMph: number
+): number | null {
+  if (throttlePct == null || rpm == null || !Number.isFinite(throttlePct) || !Number.isFinite(rpm)) return prev;
+  if (!(speedMph < 1) || rpm < 400 || rpm > CLOSED_LEARN_MAX_RPM) return prev;
+  if (throttlePct < 0 || throttlePct > CLOSED_MAX_PCT) return prev;
+  return prev == null ? throttlePct : Math.min(prev, throttlePct);
+}
+
+/**
+ * Miles for one integration step: the GPS delta while GPS is fixed, else OBD speed × dt
+ * (tunnel, garage, a cold start before the first fix), else 0.
+ *  • `gpsJustRestored` → 0: the first GPS delta after a gap spans the whole gap, which
+ *    the OBD bridge already counted.
+ *  • `speedMph` is the effective speed (GPS, else OBD) and gates the GPS path at 1 mph;
+ *    the bridged path gates on the OBD speed itself, because a GPS speed held over
+ *    from before the fix was lost must not decide whether a parked truck is moving.
+ *  • `obdSpeedMph` must be a FRESH reading (< 3 s) or null.
+ */
+export function stepMiles(args: {
+  gpsFix: boolean;
+  gpsJustRestored: boolean;
+  gpsDeltaMi: number;
+  obdSpeedMph: number | null;
+  speedMph: number;
+  dtHours: number;
+}): number {
+  const { gpsFix, gpsJustRestored, gpsDeltaMi, obdSpeedMph, speedMph, dtHours } = args;
+  if (gpsJustRestored) return 0;
+  if (gpsFix) return speedMph >= 1 && Number.isFinite(gpsDeltaMi) ? Math.max(0, gpsDeltaMi) : 0;
+  if (obdSpeedMph == null || !Number.isFinite(obdSpeedMph) || obdSpeedMph < 1) return 0;
+  if (!Number.isFinite(dtHours) || dtHours <= 0) return 0;
+  return obdSpeedMph * dtHours;
 }
 
 /**
  * Trip-average MPG by integration (NOT averaging instantaneous values).
  * Accumulate each poll with the elapsed hours since the last sample; prefer GPS
- * distance for `miles` when available, else speed·dt.
+ * distance for `miles` when available, else speed·dt. `fuelCut` (DFCO, see isFuelCut)
+ * counts the step's miles but no gallons.
  */
 export interface FuelAccum {
   gallons: number;
@@ -52,14 +125,15 @@ export function accumFuel(
   mafGps: number,
   speedMph: number,
   dtHours: number,
-  milesOverride?: number
+  milesOverride?: number,
+  fuelCut = false
 ): FuelAccum {
   if (!Number.isFinite(dtHours) || dtHours <= 0) return s;
   const gph = gallonsPerHour(mafGps);
   const miles = Number.isFinite(milesOverride as number)
     ? (milesOverride as number)
     : Math.max(0, speedMph) * dtHours;
-  return { gallons: s.gallons + gph * dtHours, miles: s.miles + miles };
+  return { gallons: fuelCut ? s.gallons : s.gallons + gph * dtHours, miles: s.miles + miles };
 }
 export function avgMpg(s: FuelAccum): number | null {
   if (s.gallons <= 0) return null;

@@ -98,6 +98,16 @@ Read from `adb logcat -s RNBluetoothClassicModule` (the BT library logs every re
 - **Background pause:** the moment another app is in front (`ReactHost.onHostPause`), JS timers
   stop and so does OBD polling (last reply 80 ms after pause); it resumes on HOME. The RFCOMM link
   stays open (status-bar OBD glyph stays lit). So no OBD/MPG logging while CarPlay is in front.
+- **Fuel-math corrections (2026-10-28) are UNTESTED on the truck (FACT).** E10 constant k = 11.0
+  (was the E0 value — see derive.ts), no gallons during deceleration fuel cut, OBD-speed miles through GPS gaps,
+  lateral g in the tank-level gate. What to compare:
+  - The first FULL→FULL pump fill after this build: the logbook's `calib` (pumped ÷ measured)
+    should now sit near **1.0**; before this change it was expected near **1.04** (E0 constant
+    under-counted E10 gallons by ~4 %). Well above 1.0 → DFCO is cutting fuel that was burned.
+  - DFCO assumes the throttle at a released pedal while coasting reads within 1.5 % of the warm-idle
+    reading (idle 17 %, PID 11). Check a logcat tap on a long coast in gear: 0x11 should stay at
+    the idle value (~0x2C–0x2E). If it sits higher, the gate never fires (= the old gallons).
+  - A tunnel / garage exit: trip miles should keep counting with no GPS fix (OBD speed).
 
 ## Media sessions + foreground behaviour (FACT, 2026-10-23)
 - The stock Telenav launcher owns three sessions, told apart by **tag**: `BluetoothMediaService`

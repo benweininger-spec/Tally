@@ -125,6 +125,10 @@ import {
   avgMpg,
   initFuelAccum,
   accumFuel,
+  MPG_MAF_CONSTANT,
+  isFuelCut,
+  learnClosedThrottle,
+  stepMiles,
   estHp,
   estTorqueLbFt,
   initZeroSixty,
@@ -438,15 +442,47 @@ console.log('\nLONG-TERM MPG (src/lib/mpgLog.ts)');
 
 console.log('\nDERIVED METRICS (src/lib/derive.ts)');
 {
-  ok(approx(instantMpg(11.428, 60), 60, 1e-2), 'instant MPG: k·mph/MAF (11.428,60)->60');
-  ok(instantMpg(11.428, 0) === null, 'instant MPG null at idle (speed 0)');
+  ok(approx(MPG_MAF_CONSTANT, 1 / (3600 / (14.08 * 6.20 * 453.592)), 0.01), 'k = 11.00 from E10 (AFR 14.08, 6.20 lb/gal)');
+  ok(approx(instantMpg(11.0, 60), 60, 1e-2), 'instant MPG: k·mph/MAF (11.0,60)->60');
+  ok(instantMpg(11.0, 0) === null, 'instant MPG null at idle (speed 0)');
   ok(instantMpg(0, 60) === null, 'instant MPG null with no MAF');
-  ok(approx(gallonsPerHour(11.428), 1, 1e-3), 'GPH = MAF/k = 1 gal/hr');
+  ok(approx(gallonsPerHour(11.0), 1, 1e-3), 'GPH = MAF/k = 1 gal/hr');
 
   let fa = initFuelAccum();
-  fa = accumFuel(fa, 11.428, 60, 1); // 60 mph for 1 hr, MAF 11.428 -> 60 mi / 1 gal
+  fa = accumFuel(fa, 11.0, 60, 1); // 60 mph for 1 hr, MAF 11.0 -> 60 mi / 1 gal
   ok(approx(avgMpg(fa), 60, 1e-1), 'avg MPG integrates to 60');
   ok(avgMpg(initFuelAccum()) === null, 'avg MPG null before any fuel used');
+
+  // deceleration fuel cut: pedal up above idle while rolling → injectors off
+  ok(isFuelCut(0, 1800, 35) === true, 'DFCO: pedal up, 1800 rpm, 35 mph → fuel cut');
+  ok(isFuelCut(0, 900, 35) === false, 'DFCO: idle rpm → injecting');
+  ok(isFuelCut(12, 2500, 35) === false, 'DFCO: pedal down → injecting');
+  ok(isFuelCut(0, 1800, 3) === false, 'DFCO: creeping → injecting');
+  ok(isFuelCut(null, 1800, 35) === false && isFuelCut(0, null, 35) === false, 'DFCO: never guessed without throttle + rpm');
+  // the truck's PID 11 reads ~17 % with the pedal up: measured from the learned closed position
+  ok(isFuelCut(17.6, 1800, 35) === false && isFuelCut(17.6, 1800, 35, 17.3) === true && isFuelCut(20, 1800, 35, 17.3) === false,
+    'DFCO on an absolute TPS: 17.6 % is "closed" only once the closed position (17.3 %) is known');
+  let cl: number | null = null;
+  cl = learnClosedThrottle(cl, 18.0, 750, 0);
+  cl = learnClosedThrottle(cl, 17.3, 760, 0);
+  cl = learnClosedThrottle(cl, 17.6, 740, 0);
+  ok(cl === 17.3, 'closed throttle = lowest warm-idle reading');
+  ok(learnClosedThrottle(17.3, 10, 1400, 0) === 17.3 && learnClosedThrottle(17.3, 10, 750, 30) === 17.3 && learnClosedThrottle(null, 22, 1300, 0) === null,
+    'cold fast idle / rolling never teach the closed position');
+  ok(learnClosedThrottle(null, 45, 750, 0) === null && learnClosedThrottle(17.3, null, 750, 0) === 17.3, 'implausible / missing readings ignored');
+  let fc = accumFuel(initFuelAccum(), 11.0, 40, 0.01, 0.4);
+  const g0 = fc.gallons;
+  fc = accumFuel(fc, 11.0, 40, 0.01, 0.4, true);
+  ok(fc.gallons === g0 && approx(fc.miles, 0.8, 1e-9), 'a fuel-cut step adds miles, not gallons');
+
+  // miles through GPS gaps
+  const sm = (o: Partial<Parameters<typeof stepMiles>[0]>) =>
+    stepMiles({ gpsFix: true, gpsJustRestored: false, gpsDeltaMi: 0, obdSpeedMph: null, speedMph: 30, dtHours: 0.001, ...o });
+  ok(sm({ gpsDeltaMi: 0.02, obdSpeedMph: 30 }) === 0.02, 'GPS fixed → the GPS delta (OBD ignored)');
+  ok(approx(sm({ gpsFix: false, obdSpeedMph: 30 }), 0.03, 1e-9), 'no fix + OBD 30 mph for 0.001 h → 0.03 mi');
+  ok(sm({ gpsFix: false, obdSpeedMph: null }) === 0, 'no fix + no OBD → 0');
+  ok(sm({ gpsJustRestored: true, gpsDeltaMi: 0.5, obdSpeedMph: 30 }) === 0, 'GPS just restored → 0 (the bridge already counted the gap)');
+  ok(sm({ speedMph: 0.5, gpsDeltaMi: 0.02 }) === 0 && sm({ gpsFix: false, speedMph: 40, obdSpeedMph: 0.5 }) === 0, 'speed < 1 → 0 (bridged path gates on OBD speed, not a held-over GPS speed)');
 
   ok(approx(estHp(5200, 100), 159, 1e-6), 'estHp at peak rpm + full load = 159');
   ok(estHp(800, 20) > 0 && estHp(800, 20) < 159, 'estHp partial at idle-ish');
@@ -843,6 +879,7 @@ console.log('\nFUEL LEVEL SLOSH FILTER + BOOT CONNECT (src/lib/fuelFilter.ts, ob
 {
   ok(iqm([1, 2, 3, 4, 100, -50, 3, 2]) === 2.5 && iqm([7]) === 7 && iqm([]) === null, 'interquartile mean drops the peaks');
   ok(isLevel(1, -2, 0.02) && !isLevel(6, 0, 0) && !isLevel(0, 5, 0) && !isLevel(0, 0, 0.2) && isLevel(null, null, null), 'level = |pitch|,|roll| ≤ 4°, |g| ≤ 0.08 (no IMU → trusted)');
+  ok(isLevel(0, 0, 0, 0.2) === false && isLevel(0, 0, 0, 0.03) === true && isLevel(0, 0, 0, null) === true, 'a sustained corner (|lat g| > 0.08) sloshes like a grade');
   // 5 min at ~57 L, a hill makes the float swing ±6 L on tilted samples
   const f = createFuelFilter();
   let t = 0;

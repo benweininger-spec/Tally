@@ -31,6 +31,9 @@ import {
   initZeroSixty,
   gallonsPerHour,
   instantMpg,
+  isFuelCut,
+  learnClosedThrottle,
+  stepMiles,
   zeroSixtyStep,
   type FuelAccum,
   type ZeroSixtyState,
@@ -159,7 +162,13 @@ export class LiveDataSource implements DataSource, LiveControls {
   private zeroSixty: ZeroSixtyState = initZeroSixty();
   private prevDistanceMi = 0;
   private lastFuelAt = 0; // wall time of the last fuel-integration step
-  private prevGpsFix = false;
+  private prevGpsFix = false; // last tick's GPS was usable for miles (see gpsUsable)
+  // OBD-speed miles driven without a GPS fix — added to the GPS odometer for trip.distanceMi
+  private bridgedMi = 0;
+  private gapBridgedMi = 0; // bridged during the current GPS gap (undone if GPS re-counts it)
+  private bridgedAt: number | null = null; // wall time of the last bridged step
+  private closedThrottle: number | null = null; // learned at warm idle (PID 11 reads ~17 % closed)
+  private fuelCut = false; // DFCO this tick: no fuel charged, fuel rate shows 0
   // gauge-cluster fuel readings slosh on grades: 5-min, level-only interquartile mean
   private fuelFilter = createFuelFilter();
   private lastFuelReadAt: number | null = null;
@@ -279,19 +288,48 @@ export class LiveDataSource implements DataSource, LiveControls {
     // (it's real fuel at the pump); only the MILES skip a GPS-just-restored step, whose
     // delta spans the whole dropout. dt is capped so a frozen/slept gap isn't integrated
     // with a stale airflow reading.
+    //  • No GPS fix (tunnel, garage, cold start): miles come from OBD speed × dt instead
+    //    (`stepMiles`), and they're added to trip.distanceMi too, so the MPG log + logbook
+    //    odometer don't see fuel with no miles.
+    //  • Deceleration fuel cut (pedal up, ≥ 1,200 rpm, rolling): the ECU stops injecting
+    //    but MAF still reads air → that step adds miles, not gallons (`isFuelCut`).
     const tickNow = Date.now();
     const dtMs = this.lastFuelAt ? Math.min(FUEL_DT_CAP_MS, tickNow - this.lastFuelAt) : 0;
     this.lastFuelAt = tickNow;
-    const gpsJustRestored = loc.gpsFix && !this.prevGpsFix;
-    if (this.obd?.connected && dtMs > 0) {
-      const mafR = this.obd.read(PIDS.MAF);
-      if (mafR.value != null && mafR.at != null && tickNow - mafR.at < 3000) {
-        const dMiles = speedMph >= 1 && !gpsJustRestored ? Math.max(0, loc.distanceMi - this.prevDistanceMi) : 0;
-        this.fuel = accumFuel(this.fuel, mafR.value, speedMph, dtMs / 3_600_000, dMiles);
-      }
+    const dtHours = dtMs / 3_600_000;
+    const gpsDeltaMi = Math.max(0, loc.distanceMi - this.prevDistanceMi);
+    const obd = this.obd?.connected ? this.obd : null;
+    // FAST-group readings (rpm, speed, throttle, MAF) count only while < 3 s old
+    const fast = (pid: number): number | null => {
+      const r = obd?.read(pid);
+      return r && r.value != null && r.at != null && tickNow - r.at < 3000 ? r.value : null;
+    };
+    const obdSpeedKmhNow = fast(PIDS.SPEED);
+    const obdSpeedMph = obdSpeedKmhNow != null ? kmhToMph(obdSpeedKmhNow) : null;
+    // a fix that has neither a speed nor movement yet is as good as no fix
+    const gpsUsable = loc.gpsFix && (loc.speedMph != null || gpsDeltaMi > 0);
+    const gpsJustRestored = gpsUsable && !this.prevGpsFix;
+    const dMiles = stepMiles({ gpsFix: gpsUsable, gpsJustRestored, gpsDeltaMi, obdSpeedMph, speedMph, dtHours });
+    if (gpsUsable) {
+      // a 5–10 s gap: GPS hands over the whole gap's distance on the restoring fix, and
+      // the bridge already counted its tail → don't count that part twice
+      if (gpsJustRestored && gpsDeltaMi > 0) this.bridgedMi -= Math.min(this.gapBridgedMi, gpsDeltaMi);
+      this.gapBridgedMi = 0;
+    } else if (dMiles > 0) {
+      this.bridgedMi += dMiles;
+      this.gapBridgedMi += dMiles;
+      this.bridgedAt = tickNow;
+    }
+    const thr = fast(PIDS.THROTTLE);
+    const rpmNow = fast(PIDS.RPM);
+    this.closedThrottle = learnClosedThrottle(this.closedThrottle, thr, rpmNow, speedMph);
+    this.fuelCut = obd != null && isFuelCut(thr, rpmNow, speedMph, this.closedThrottle ?? 0);
+    if (obd && dtMs > 0) {
+      const maf = fast(PIDS.MAF);
+      if (maf != null) this.fuel = accumFuel(this.fuel, maf, speedMph, dtHours, dMiles, this.fuelCut);
     }
     this.prevDistanceMi = loc.distanceMi;
-    this.prevGpsFix = loc.gpsFix;
+    this.prevGpsFix = gpsUsable;
 
     // Tier B liveness: after the user grants Notification access at runtime nothing
     // re-arms the listener, so now-playing would sit empty until a track change. A
@@ -400,7 +438,11 @@ export class LiveDataSource implements DataSource, LiveControls {
         rollDeg: this.fresh(sensR(sens.rollDeg != null ? round(sens.rollDeg) : null), now, (v) => v, 500, 2000),
       },
       trip: {
-        distanceMi: this.fresh(gpsR(round1(loc.distanceMi), loc.lastFixAt), now),
+        // GPS odometer + the OBD-speed miles bridged through GPS gaps (fresh from either)
+        distanceMi: this.fresh(
+          { value: round1(loc.distanceMi + this.bridgedMi), at: Math.max(loc.lastFixAt ?? 0, this.bridgedAt ?? 0) || null },
+          now
+        ),
         movingTimeSec: this.fresh(gpsR(round(loc.movingTimeSec), loc.lastFixAt), now),
         avgSpeedMph: this.fresh(gpsR(round(loc.avgSpeedMph), loc.lastFixAt), now),
         // MAF-integrated gallons (FuelAccum) — only meaningful while OBD feeds it
@@ -451,7 +493,12 @@ export class LiveDataSource implements DataSource, LiveControls {
             addFuelSample(this.fuelFilter, {
               at: r.at,
               litres: r.value,
-              level: isLevel(sens.online ? sens.pitchDeg : null, sens.online ? sens.rollDeg : null, sens.online ? sens.longG : null),
+              level: isLevel(
+                sens.online ? sens.pitchDeg : null,
+                sens.online ? sens.rollDeg : null,
+                sens.online ? sens.longG : null,
+                sens.online ? sens.latG : null
+              ),
               stopped: (loc.speedMph ?? 0) < 1,
             });
           }
@@ -482,7 +529,9 @@ export class LiveDataSource implements DataSource, LiveControls {
         zeroToSixtySec: zsResult != null ? live(round1(zsResult), now) : absent<number>(),
         fuelRateGph: (() => {
           const m = obdNum(mafReading);
-          return m.status === 'absent' || m.value == null ? absent<number>() : { ...m, value: round2(gallonsPerHour(m.value)) };
+          if (m.status === 'absent' || m.value == null) return absent<number>();
+          // deceleration fuel cut: injectors off — agree with the integrator, not the MAF
+          return { ...m, value: this.fuelCut ? 0 : round2(gallonsPerHour(m.value)) };
         })(),
         mafGps: obdNum(mafReading, round1),
         ecuSpeedMph: obdNum(obd?.read(PIDS.SPEED) ?? { value: null, at: null }, (k) => round(kmhToMph(k))),

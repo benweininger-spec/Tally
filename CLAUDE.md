@@ -108,6 +108,9 @@ runtime. Web still runs the sim with zero hardware; live mode is native-only.
     trip end). Only miles with OBD fuel flow are *scored*; non-OBD miles are stored but never
     dilute the mpg. Sim uses a separate, never-persisted synthetic 30-day log.
   - `src/lib/dtcDescriptions.ts`: ~94 common 2TR-FE / generic codes + family fallback.
+  - **Fuel-math corrections (2026-10-28, `docs/PLAN-fuel-math.md`, untested on the truck):** E10 constant
+    (k = 11.0), DFCO gate (no gallons in deceleration fuel cut), OBD-bridged miles through GPS gaps,
+    lateral-g level gate for the tank-level filter.
 - ✅ **Truck OBD audit + HOME glances (2026-10-23)** — measured on the truck via the BT library's
   logcat tap (`docs/DEVICE-MICRONTEK.md` → "OBD on the truck"): 13 PIDs answer; MAP, fuel level,
   ambient and oil temp are NOT in the 2TR-FE's support mask. So:
@@ -244,6 +247,12 @@ source is missing — never an empty gauge. Full write-up: `docs/ARCHITECTURE.md
   was wrong; see `docs/DEVICE-MICRONTEK.md`.
 - **Headlights:** `system.headlights` (null = unit doesn't report) from the Microntek
   `com.microntek.report.event` broadcast; **AUTO theme = headlights ON → night, else clock.**
+- **Fuel math:** gallons = MAF ÷ k with **k = 11.0 for E10** pump gas (`MPG_MAF_CONSTANT`,
+  `src/lib/derive.ts`; E0 would be ~4 % higher). The pump calibration (`calib`, pumped ÷ measured
+  from full→full fills) lives **only in the logbook** (fuel left / range / cost) — it is never
+  applied to the MPG log or the faces. Deceleration fuel cut charges no fuel; PID 11 is absolute
+  (~17 % with the pedal up), so "closed" is learned at warm idle (`learnClosedThrottle`).
+  Without a GPS fix, miles come from OBD speed × dt and are folded into `trip.distanceMi`.
 - **The swap rule still holds:** the live data drops in with **zero changes to how any
   widget reads/renders data** — components bind to `DashboardData` only. `types.ts`
   gained one *optional* `obd.zeroToSixtySec` signal (defaulted absent). UI *features*

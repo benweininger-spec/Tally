@@ -4,7 +4,9 @@
  * The tank sender is a float: on a grade or under braking the fuel sloshes and the raw
  * reading swings several gallons (seen on the truck 2026-10-26). So:
  *  • keep the last FUEL_WINDOW_MS of readings,
- *  • trust only those taken near LEVEL and not accelerating hard (IMU pitch / roll / g),
+ *  • trust only those taken near LEVEL and not accelerating, braking or cornering hard
+ *    (IMU pitch / roll / longitudinal + lateral g — a sustained corner sloshes the float
+ *    like a grade),
  *  • report the interquartile mean (average of the middle half) — the peaks never count,
  *  • a big jump UP while stopped is a fill-up: restart the window so the gauge follows at once.
  * With too few level readings yet (just started, all hills) it falls back to all readings.
@@ -20,7 +22,7 @@ export const MIN_LEVEL_SAMPLES = 3;
 export interface FuelSample {
   at: number;
   litres: number;
-  /** taken near level + steady (pitch, roll, longitudinal g all small) */
+  /** taken near level + steady (pitch, roll, longitudinal + lateral g all small) */
   level: boolean;
   stopped: boolean;
 }
@@ -32,9 +34,14 @@ export interface FuelFilter {
 export const createFuelFilter = (): FuelFilter => ({ samples: [] });
 
 /** Was the truck level + steady enough for the float to be honest? */
-export function isLevel(pitchDeg: number | null, rollDeg: number | null, longG: number | null): boolean {
+export function isLevel(pitchDeg: number | null, rollDeg: number | null, longG: number | null, latG: number | null = null): boolean {
   if (pitchDeg == null || rollDeg == null) return true; // no IMU: can't tell — trust it
-  return Math.abs(pitchDeg) <= LEVEL_TILT_DEG && Math.abs(rollDeg) <= LEVEL_TILT_DEG && Math.abs(longG ?? 0) <= LEVEL_ACCEL_G;
+  return (
+    Math.abs(pitchDeg) <= LEVEL_TILT_DEG &&
+    Math.abs(rollDeg) <= LEVEL_TILT_DEG &&
+    Math.abs(longG ?? 0) <= LEVEL_ACCEL_G &&
+    Math.abs(latG ?? 0) <= LEVEL_ACCEL_G
+  );
 }
 
 /** Interquartile mean: drop the lowest + highest quarter, average the rest. */

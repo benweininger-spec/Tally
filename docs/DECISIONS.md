@@ -80,9 +80,11 @@ open. This log records what we locked and why.
     (`src/settings/`), and the only component change is wrapping SET in a `Pressable`.
     No data rendering changed. `types.ts` gained one *optional* `obd.zeroToSixtySec`.
 
-12. **MPG constant corrected to 11.428** (not the often-quoted 710.7, which is for
-    other units and gives absurd MPG with MAF in g/s). Derived from AFR 14.7 + 6.17
-    lb/gal; unit-tested. The 0–60 timer is GPS-armed (smoother than OBD speed).
+12. **MPG constant derived from first principles** (not the often-quoted 710.7, which is
+    for other units and gives absurd MPG with MAF in g/s); unit-tested. First derived for
+    E0 (AFR 14.7, 6.17 lb/gal — value kept as a note in `src/lib/derive.ts`); **2026-10-28:
+    k = 11.0 for E10** pump gas (AFR 14.08, 6.20 lb/gal), see `docs/PLAN-fuel-math.md`.
+    The 0–60 timer is GPS-armed (smoother than OBD speed).
 
 13. **Tier B (media) is staged, not active.** The Kotlin module lives in `native/`
     (not autolinked) so it can't break the first Tier-A build; activate per
