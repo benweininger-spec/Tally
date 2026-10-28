@@ -48,6 +48,33 @@ status-bar OBD glyph when any app connects.
 `.sync { syncdata: byte[] }` (from `android.microntek.canbus`, periodic), `com.hct.radio.report`,
 `com.hct.touch.report`. `MtcEvents` logs any it receives: `adb logcat -s MtcEvents`.
 
+## Power-on / key-off app handling (FROM DECOMPILED CODE 2026-10-28 — not yet tried on the unit)
+All in `android.microntek.service` (decomp in `docs/device/decomp/`):
+- **Key-off force-stops us.** `savePoweroffData()` (MicrontekServer ~L2793) stores the top app in
+  `Settings.System "microntek.lastpackname"` (ZLink's screen in `zlink.lastClassName`); `PowerOffAction()`
+  then brings HOME forward, tells ZLink to exit and runs `ClearProcess.ClearManange` → `forceStopPackage`
+  on every third-party package NOT on two hard-coded prefix lists (`android/microntek/ClearProcess.java`
+  L33–34: `com.microntek.`, `com.hct.`, `com.google.android`, the Telenav launcher, …). `com.benji.tacomadash`
+  isn't listed and no setting changes the lists → after key-off the app is in Android's *stopped* state:
+  no broadcasts (BOOT_COMPLETED included) reach it until something launches it.
+- **Key-on / boot restore.** `MtcStartApp()` (MicrontekServiceBase ~L3682) replays `lastpackname`
+  (ZLink: 1 s wait, then its saved screen), and THEN, if `Settings.System "av_gps_autorun="` (the key
+  really ends in `=`) is `on`, launches the "navigation app" `Settings.System "gpspkname"` — started by
+  the system service, so Android 13's background-launch limits don't apply. Off only if
+  `ro.product.startapp=false`. That's why CarPlay comes up and the dash never initialises.
+- The stock launcher is NOT re-forced as HOME on Android 13 (`setDefaultLauncher` only below 13).
+- Receivers in the service open to any app: `com.microntek.setnavi {pkname}` (writes `gpspkname`),
+  `com.microntek.startpackage {package, class}` (system starts that activity). ZLink broadcasts
+  `com.zjinnova.zlink {status: MAIN_PAGE_SHOW | MAIN_PAGE_HIDDEN}`. Power state:
+  `com.microntek.report.event {type:"power", value 2 on / 1 off / 0 acc_off / -1 sleep}` (runtime receivers only).
+- **The fix to try:** make the dash the navigation app with auto-run on — unit UI (GUESS: the NAVI
+  settings, `com.microntek.navisettings`, not pulled) or
+  `adb shell settings put system gpspkname com.benji.tacomadash` +
+  `adb shell settings put system 'av_gps_autorun=' on`. Expected: key-on → ZLink restores → dash ~1.5 s
+  later, in front. Side effects: the NAVI key opens the dash; `av_gps_ontop=true` goes to the MCU while
+  the dash is on top (effect unknown — GUESS nav-voice mixing). Check after a key cycle:
+  `dumpsys package com.benji.tacomadash | grep stopped`.
+
 ## Notification-listener access without the Settings UI (FACT)
 `adb shell cmd notification allow_listener com.benji.tacomadash/expo.modules.mediabridge.MediaBridgeNotificationListenerService`
 (the `settings put secure enabled_notification_listeners` route alone does not bind on API 33).
