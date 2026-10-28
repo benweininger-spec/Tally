@@ -88,6 +88,15 @@ options** under Android Settings → System; enable **USB debugging**.
 > ⚠️ ADB mode and `tcpip` can reset on reboot — re-enter `adbon` after a power cycle
 > if `adb devices` shows nothing.
 
+**Stable port (FACT, 2026-10-28).** Android 13's *Wireless debugging* toggle uses a TLS
+port that rotates every session and drops when the unit sleeps — that was the
+"new port every 10 minutes" pain. Classic TCP mode fixes it: with any adb link up, run
+`adb -s <addr> tcpip 5555`, then `adb connect 192.168.4.45:5555` (the unit's LAN
+address). `service.adb.tcp.port=5555` sticks until adbd restarts (full power-off / reboot;
+ACC-off standby keeps it). `push-to-truck.command` now defaults `TRUCK_ADDR` to that
+address. adbd runs as `shell` (no root), so `persist.adb.tcp.port` can't be set — after
+a real reboot, re-enable Wireless debugging once, connect on its port, and re-run `tcpip`.
+
 **USB** (authorize the RSA prompt on the head-unit screen when `adb devices` runs):
 ```bash
 adb devices

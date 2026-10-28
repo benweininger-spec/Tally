@@ -58,7 +58,7 @@ bar "Finding the head unit"
 # Optional: auto-(re)connect to a known wireless address. Set TRUCK_ADDR below
 # (e.g. "192.168.0.50:5555") once you've given the unit a stable tcpip port, and
 # the walk-up-to-the-house flow becomes truly one-click.
-TRUCK_ADDR="${TRUCK_ADDR:-}"
+TRUCK_ADDR="${TRUCK_ADDR:-192.168.4.45:5555}"   # fixed tcpip port (see docs/M2-LIVE-BUILD.md "Stable port")
 [ -n "$TRUCK_ADDR" ] && "$ADB" connect "$TRUCK_ADDR" >/dev/null 2>&1
 
 # Self-heal a stale adb server (the "No route to host while ping works" trap):
