@@ -22,8 +22,6 @@ export interface RecorderTick {
   long: number | null;
   speedMph: number | null;
   rpm: number | null;
-  /** throttle position %, null without OBD (optional so older callers still type-check) */
-  throttle?: number | null;
 }
 
 export interface DriveRecorder {
@@ -35,8 +33,6 @@ export interface DriveRecorder {
   /** ring buffers, newest at (head − 1) */
   speedRing: Float32Array;
   rpmRing: Float32Array;
-  /** throttle %, NaN when absent — the signature's trace */
-  thrRing: Float32Array;
   head: number;
   count: number;
   lastT: number | null;
@@ -54,7 +50,6 @@ export function createDriveRecorder(): DriveRecorder {
     gLive: false,
     speedRing: new Float32Array(RECORD_SLOTS),
     rpmRing: new Float32Array(RECORD_SLOTS).fill(NaN),
-    thrRing: new Float32Array(RECORD_SLOTS).fill(NaN),
     head: 0,
     count: 0,
     lastT: null,
@@ -89,7 +84,6 @@ export function recordTick(r: DriveRecorder, s: RecorderTick, t: number): void {
     r.lastSampleT = t;
     r.speedRing[r.head] = s.speedMph != null && Number.isFinite(s.speedMph) ? s.speedMph : 0;
     r.rpmRing[r.head] = s.rpm != null && Number.isFinite(s.rpm) ? s.rpm : NaN;
-    r.thrRing[r.head] = s.throttle != null && Number.isFinite(s.throttle) ? s.throttle : NaN;
     r.head = (r.head + 1) % RECORD_SLOTS;
     r.count = Math.min(RECORD_SLOTS, r.count + 1);
   }
@@ -113,14 +107,6 @@ export function readRecord(r: DriveRecorder, speeds: Float32Array, rpms: Float32
     speeds[i] = r.speedRing[k];
     rpms[i] = r.rpmRing[k];
   }
-  return n;
-}
-
-/** Throttle ring oldest → newest into `out` (same order + count as readRecord). */
-export function readThrottle(r: DriveRecorder, out: Float32Array): number {
-  const n = r.count;
-  const start = (r.head - n + RECORD_SLOTS) % RECORD_SLOTS;
-  for (let i = 0; i < n; i++) out[i] = r.thrRing[(start + i) % RECORD_SLOTS];
   return n;
 }
 

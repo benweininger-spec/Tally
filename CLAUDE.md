@@ -297,9 +297,9 @@ Data tiers (see `docs/design-brief.md` §3):
    trace wrapped by a **radial ring** that reads **speed pre-OBD and RPM (with
    redline) once the dongle connects**. The center number is **always ground speed**
    (the safety glance); no number is shown twice. **2026-10-26: the trace is the last
-   minute of THROTTLE % on a fixed 0–100 scale (speed when OBD is down)** — the ring already
-   carries RPM (was longitudinal g — on the truck it read as jittery noise with no
-   meaning to the driver): read from the always-on drive recorder, 1.5 s box-averaged and
+   minute of RPM (speed when OBD is down)** — was longitudinal g (on the truck it read as
+   jittery noise with no meaning to the driver); a throttle-% trace was tried 2026-10-26 and
+   reverted 2026-10-28 by the driver's call (RPM read better): read from the always-on drive recorder, 1.5 s box-averaged and
    drawn as a Catmull-Rom spline (`buildTrace` in `src/lib/pulse.ts`, verify-tested: one
    new sample moves the curve < 1.5 px), scale changes eased over ~1 s.
 3. **Amber is the shipped theme.** Architecture is themeable; we ship one theme,
